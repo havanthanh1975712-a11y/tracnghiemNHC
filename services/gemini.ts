@@ -144,6 +144,20 @@ const processAIQuestions = (rawData: any[]): Question[] => {
     });
 };
 
+const formatGeminiError = (error: any): string => {
+    const errorStr = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+    if (errorStr.includes('403') || errorStr.includes('PERMISSION_DENIED') || errorStr.includes('permission')) {
+        return "Lỗi 403 (Không có quyền truy cập): API Key chưa được cấp quyền gọi Gemini API.\n• Khắc phục: Bạn vui lòng vào https://aistudio.google.com/app/apikey tạo một API Key mới (miễn phí), hoặc nếu tạo trong Google Cloud Console thì cần bật (Enable) API 'Generative Language API' và kiểm tra API Key restrictions.";
+    }
+    if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('quota')) {
+        return "Lỗi 429 (Vượt quá hạn mức): API Key này đã hết lượt gọi tạm thời hoặc bị giới hạn tốc độ. Vui lòng đợi khoảng 1 phút rồi thử lại, hoặc nhập một API Key khác.";
+    }
+    if (errorStr.includes('API_KEY_INVALID') || errorStr.includes('API key not valid') || errorStr.includes('400')) {
+        return "Lỗi 400: API Key không hợp lệ hoặc dữ liệu gửi đi không đúng định dạng. Vui lòng kiểm tra lại mã API Key.";
+    }
+    return errorStr;
+};
+
 const getAiClient = (overrideApiKey?: string): GoogleGenAI => {
     const key = (overrideApiKey && overrideApiKey.trim()) ? overrideApiKey.trim() : (process.env.API_KEY || "");
     if (!key) {
@@ -173,7 +187,6 @@ Hãy phân bổ độ khó cho các câu hỏi sao cho tỉ lệ các mức đ�
         : "NGUỒN DỮ LIỆU: Sử dụng kho tri thức chuyên sâu của bạn về chương trình giáo dục phổ thông Việt Nam để soạn đề.";
 
     const prompt = `Bạn là chuyên gia soạn đề thi THPT quốc gia Việt Nam môn Toán/Lý/Hóa.
-Sử dụng model: gemini-3-flash-preview.
 ${sourceInstruction}
 
 YÊU CẦU CHI TIẾT:
@@ -183,7 +196,7 @@ YÊU CẦU CHI TIẾT:
 ${matrixPrompt}
 
 QUY TẮC KỸ THUẬT BẮT BUỘC:
-1. LaTeX: Mọi biểu thức, công thức, ký hiệu toán/lý/hóa (VD: $\Delta\Phi$, $\Omega$, $x^2$, $\vec{v}$) BẮT BUỘC phải nằm trong cặp dấu $...$. Quy tắc này áp dụng cho NỘI DUNG CÂU HỎI, CÁC PHƯƠNG ÁN (Options), và LỜI GIẢI (Solution).
+1. LaTeX: Mọi biểu thức, công thức, ký hiệu toán/lý/hóa (VD: $\\Delta\\Phi$, $\\Omega$, $x^2$, $\\vec{v}$) BẮT BUỘC phải nằm trong cặp dấu $...$. Quy tắc này áp dụng cho NỘI DUNG CÂU HỎI, CÁC PHƯƠNG ÁN (Options), và LỜI GIẢI (Solution).
 2. Solution (Lời giải): Phải có lời giải chi tiết, sư phạm cho từng câu.
 3. MCQ: 'correctAnswer' phải là nội dung của phương án đúng (không kèm nhãn A, B, C, D).
 4. GROUP-TF: 
@@ -205,7 +218,7 @@ QUY TẮC KỸ THUẬT BẮT BUỘC:
             : prompt;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.5-flash',
             contents: contents,
             config: {
                 responseMimeType: "application/json",
@@ -246,7 +259,7 @@ QUY TẮC KỸ THUẬT BẮT BUỘC:
         
         return processAIQuestions(rawData);
     } catch (error: any) {
-        throw new Error("AI không thể tạo đề: " + error.message);
+        throw new Error("AI không thể tạo đề: " + formatGeminiError(error));
     }
 };
 
@@ -255,7 +268,7 @@ export const parseQuestionsFromPDF = async (base64Data: string, customApiKey?: s
   
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: {
           parts: [
               { inlineData: { mimeType: "application/pdf", data: base64Data } },
@@ -301,7 +314,7 @@ export const parseQuestionsFromPDF = async (base64Data: string, customApiKey?: s
     
     return processAIQuestions(rawData);
   } catch (error: any) {
-    throw new Error("Lỗi đọc PDF: " + error.message);
+    throw new Error("Lỗi đọc PDF: " + formatGeminiError(error));
   }
 };
 
@@ -533,7 +546,7 @@ export const parseQuestionsFromText = async (rawText: string, customApiKey?: str
     
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.5-flash',
             contents: `${EXTRACTION_INSTRUCTION}\n\nNỘI DUNG VĂN BẢN CẦN TRÍCH XUẤT:\n${rawText}`,
             config: {
                 responseMimeType: "application/json",
@@ -572,6 +585,6 @@ export const parseQuestionsFromText = async (rawText: string, customApiKey?: str
         
         return processAIQuestions(rawData);
     } catch (error: any) {
-        throw new Error("Lỗi bóc tách văn bản: " + error.message);
+        throw new Error("Lỗi bóc tách văn bản: " + formatGeminiError(error));
     }
 };
