@@ -800,68 +800,154 @@ export default function QuizEditor(props: QuizEditorProps) {
                 </div>
             )}
 
-            <div className="bg-white p-10 rounded-[3.5rem] border-2 border-slate-50 shadow-sm space-y-10 relative overflow-hidden">
+            {/* Modal cấu hình Gemini API Key */}
+            {showKeyInput && props.onApiKeyChange && (
+                <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[2200] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 border-4 border-white space-y-6 animate-scale-up">
+                        <div className="flex items-center justify-between border-b pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                                    <Key size={22}/>
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-slate-800 uppercase tracking-tight text-base">Cấu hình Gemini API Key</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Dùng cho AI soạn đề & bóc tách PDF / Văn bản</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowKeyInput(false)}
+                                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition-colors"
+                            >
+                                <X size={20}/>
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                                    Mã API Key (AI Studio)
+                                </label>
+                                {props.customApiKey ? (
+                                    <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                                        <Check size={10}/> Đang kích hoạt
+                                    </span>
+                                ) : (
+                                    <span className="text-[9px] font-bold uppercase text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                                        {props.isSuperAdmin ? 'Đang dùng Key mặc định' : 'Chưa nhập Key'}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="relative flex items-center">
+                                <input
+                                    type="text"
+                                    placeholder={props.isSuperAdmin ? "Mặc định dùng Key hệ thống (nhập để đổi)..." : "Dán mã AI Studio API Key vào đây..."}
+                                    value={props.customApiKey || ''}
+                                    onChange={e => props.onApiKeyChange?.(e.target.value)}
+                                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-xs font-mono font-medium outline-none focus:border-blue-500 focus:bg-white transition-all text-slate-800"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] pt-1">
+                                <a 
+                                    href="https://aistudio.google.com/app/apikey" 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-blue-600 hover:underline font-bold flex items-center gap-1"
+                                >
+                                    <Sparkles size={12}/> Lấy API Key miễn phí tại Google AI Studio
+                                </a>
+                                {props.customApiKey && (
+                                    <button
+                                        type="button"
+                                        onClick={() => props.onApiKeyChange?.('')}
+                                        className="text-red-500 hover:text-red-700 font-bold hover:underline"
+                                    >
+                                        Xóa Key đã lưu
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 text-[11px] text-slate-600 space-y-1">
+                            <p className="font-bold text-blue-900">💡 Lưu ý bảo mật:</p>
+                            <p>Key được lưu trực tiếp trên trình duyệt của riêng bạn. Mỗi giáo viên có thể dùng Key riêng mà không ảnh hưởng lẫn nhau.</p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowKeyInput(false)}
+                            className="w-full py-3.5 bg-slate-900 hover:bg-black text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg active:scale-95"
+                        >
+                            Xác nhận & Đóng
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="bg-white p-8 sm:p-10 rounded-[3.5rem] border-2 border-slate-50 shadow-sm space-y-8 relative overflow-hidden">
                 <div className={`absolute top-0 right-16 px-8 py-3 rounded-b-3xl font-black text-xs uppercase shadow-xl z-10 transition-colors ${totalPoints === 10 ? 'bg-emerald-600' : 'bg-orange-500'} text-white`}>
                     Tổng điểm đề: {totalPoints.toFixed(2)}đ
                 </div>
                 
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b-2 border-slate-50 pb-8">
-                    <div className="flex-1 min-w-0 space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Tiêu đề đề thi</label>
-                        <input type="text" className="text-2xl font-black outline-none bg-transparent w-full uppercase placeholder:text-slate-200 focus:text-blue-600 transition-colors" placeholder="VD: KIỂM TRA CHƯƠNG I ĐẠO HÀM..." value={props.title} onChange={e => props.setTitle(e.target.value)} />
+                {/* Khu vực Nhập Tiêu đề đề thi độc lập, rộng rãi */}
+                <div className="space-y-4 border-b-2 border-slate-100 pb-6 pt-2">
+                    <div className="space-y-2 bg-slate-50/80 p-5 sm:p-6 rounded-[2rem] border-2 border-slate-100 focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-md transition-all">
+                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <FileCode size={16} className="text-blue-600"/>
+                            <span>TÊN ĐỀ THI / TIÊU ĐỀ BÀI KIỂM TRA</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            className="text-lg sm:text-2xl font-black outline-none bg-transparent w-full uppercase placeholder:text-slate-300 text-slate-900 transition-colors tracking-tight" 
+                            placeholder="NHẬP TÊN ĐỀ THI (VD: KIỂM TRA CHƯƠNG I ĐẠO HÀM...)" 
+                            value={props.title} 
+                            onChange={e => props.setTitle(e.target.value)} 
+                            autoFocus={!props.editingId && !props.title}
+                        />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+
+                    {/* Thanh công cụ nhập câu hỏi & AI (Đặt gọn gàng ngay dưới Tiêu đề) */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <label className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl text-[11px] font-black uppercase cursor-pointer hover:bg-amber-600 transition-all shadow-md active:scale-95" title="Nhập trực tiếp file .json (Không tốn lượt AI)">
+                                <FileCode size={15}/> NHẬP TỪ JSON (0% AI)
+                                <input type="file" accept=".json,application/json" className="hidden" onChange={handleJsonFileSelect}/>
+                            </label>
+                            <button 
+                                onClick={() => setIsTextInputOpen(true)}
+                                className={`flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase hover:bg-black transition-all shadow-md active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <TypeIcon size={15}/> NHẬP TỪ VĂN BẢN (AI)
+                            </button>
+                            <label className={`flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-black uppercase cursor-pointer hover:bg-black transition-all shadow-md active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                <FileUp size={15}/> NHẬP TỪ PDF (AI)
+                                <input type="file" accept="application/pdf" className="hidden" disabled={props.isAiLoading} onChange={props.onPdfExtract}/>
+                            </label>
+                            <button 
+                                onClick={props.onCleanLabels}
+                                className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl text-[11px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95"
+                                title="Xóa bỏ các nhãn A., B., a), b) dư thừa trong nội dung câu hỏi"
+                            >
+                                <Zap size={15}/> DỌN DẸP NHÃN
+                            </button>
+                        </div>
+
                         {props.onApiKeyChange && (
-                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus-within:border-blue-500 transition-all" title="API Key dùng để trích xuất đề từ văn bản / PDF">
-                                <Key size={13} className={props.customApiKey ? "text-emerald-600 mr-1.5" : "text-slate-400 mr-1.5"}/>
-                                <input 
-                                    type={showKeyInput ? "text" : "password"} 
-                                    placeholder={props.isSuperAdmin ? "Key mặc định (nhập để đổi)" : "API Key cá nhân..."} 
-                                    value={props.customApiKey || ''} 
-                                    onChange={e => props.onApiKeyChange?.(e.target.value)} 
-                                    className="text-[11px] font-mono font-medium outline-none bg-transparent w-28 sm:w-36 text-slate-700 placeholder:text-slate-400"
-                                />
-                                {props.customApiKey && (
-                                    <button 
-                                        type="button" 
-                                        onClick={() => props.onApiKeyChange?.('')} 
-                                        className="text-[8px] font-bold text-red-500 hover:bg-red-50 px-1 py-0.5 rounded ml-1 transition-colors"
-                                        title="Xóa Key"
-                                    >
-                                        Xóa
-                                    </button>
-                                )}
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowKeyInput(!showKeyInput)} 
-                                    className="p-1 text-slate-400 hover:text-slate-700 ml-0.5 transition-colors"
-                                    title={showKeyInput ? "Ẩn Key" : "Hiện Key"}
-                                >
-                                    {showKeyInput ? <EyeOff size={12}/> : <Eye size={12}/>}
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowKeyInput(true)}
+                                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase border transition-all shadow-sm active:scale-95 ${
+                                    props.customApiKey 
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' 
+                                        : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+                                }`}
+                                title="Cấu hình Gemini API Key riêng"
+                            >
+                                <Key size={14} className={props.customApiKey ? "text-emerald-600" : "text-slate-500"}/>
+                                <span>{props.customApiKey ? "Key riêng: Đã bật" : "Gemini API Key"}</span>
+                            </button>
                         )}
-                        <label className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-500 text-white rounded-xl text-[11px] font-black uppercase cursor-pointer hover:bg-amber-600 transition-all shadow-md active:scale-95" title="Nhập trực tiếp file .json (Không tốn lượt AI)">
-                            <FileCode size={15}/> NHẬP TỪ JSON (0% AI)
-                            <input type="file" accept=".json,application/json" className="hidden" onChange={handleJsonFileSelect}/>
-                        </label>
-                        <button 
-                            onClick={props.onCleanLabels}
-                            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl text-[11px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95"
-                            title="Xóa bỏ các nhãn A., B., a), b) dư thừa trong nội dung câu hỏi"
-                        >
-                            <Zap size={15}/> DỌN DẸP NHÃN
-                        </button>
-                        <button 
-                            onClick={() => setIsTextInputOpen(true)}
-                            className={`flex items-center gap-2 px-3.5 py-2.5 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase hover:bg-black transition-all shadow-md active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            <TypeIcon size={15}/> NHẬP TỪ VĂN BẢN (AI)
-                        </button>
-                        <label className={`flex items-center gap-2 px-3.5 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-black uppercase cursor-pointer hover:bg-black transition-all shadow-md active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                            <FileUp size={15}/> NHẬP TỪ PDF (AI)
-                            <input type="file" accept="application/pdf" className="hidden" disabled={props.isAiLoading} onChange={props.onPdfExtract}/>
-                        </label>
                     </div>
                 </div>
                 
