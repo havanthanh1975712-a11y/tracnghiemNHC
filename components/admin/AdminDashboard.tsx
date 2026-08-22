@@ -194,6 +194,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
     }
   });
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
   const handleApiKeyChange = (newKey: string) => {
     setCustomApiKey(newKey);
@@ -1342,45 +1343,20 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                    <h1 className="text-xl font-black text-slate-800 uppercase italic">QUẢN LÝ ĐỀ THI</h1>
                    <div className="flex flex-wrap items-center gap-2.5">
-                      {/* Textbox API Key đặt ngay cạnh nút Tạo đề mới */}
-                      <div className="flex items-center bg-white border-2 border-slate-200 hover:border-blue-400 focus-within:border-blue-500 rounded-xl px-3 py-1.5 shadow-sm transition-all">
-                        <div className="flex items-center gap-1.5 mr-2">
-                          <Key size={14} className={customApiKey ? "text-emerald-600" : "text-slate-400"} />
-                          <span className="text-[10px] font-black uppercase text-slate-500 hidden sm:inline">
-                            {isSuperAdmin ? "Gemini Key (Tùy chọn):" : "Gemini API Key:"}
-                          </span>
-                        </div>
-                        <div className="relative flex items-center">
-                          <input
-                            type={showApiKey ? "text" : "password"}
-                            placeholder={isSuperAdmin ? "Dùng Key mặc định (nhập để đổi)" : "Nhập Gemini API Key của bạn..."}
-                            value={customApiKey}
-                            onChange={(e) => handleApiKeyChange(e.target.value)}
-                            className="text-xs font-mono font-medium outline-none bg-transparent w-40 sm:w-56 text-slate-800 placeholder:text-slate-400"
-                            title={isSuperAdmin ? "Mặc định hệ thống dùng key có sẵn. Bạn có thể nhập key riêng tại đây nếu key hệ thống hết hạn." : "Nhập Gemini API Key riêng của bạn để tạo đề không bị giới hạn"}
-                          />
-                          <div className="flex items-center gap-1 ml-1">
-                            {customApiKey && (
-                              <button
-                                type="button"
-                                onClick={() => handleApiKeyChange('')}
-                                className="text-[9px] font-bold text-red-500 hover:bg-red-50 px-1 py-0.5 rounded transition-colors"
-                                title="Xóa Key"
-                              >
-                                Xóa
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setShowApiKey(!showApiKey)}
-                              className="p-1 text-slate-400 hover:text-slate-700 transition-colors"
-                              title={showApiKey ? "Ẩn Key" : "Hiện Key"}
-                            >
-                              {showApiKey ? <EyeOff size={13} /> : <Eye size={13} />}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsApiKeyModalOpen(true)}
+                        className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-black uppercase text-[10px] border transition-all shadow-sm active:scale-95 ${
+                          customApiKey 
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' 
+                            : 'bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                        title="Cấu hình Gemini API Key cho AI soạn đề"
+                      >
+                        <Key size={14} className={customApiKey ? "text-emerald-600" : "text-slate-400"} />
+                        <span>{customApiKey ? "Key riêng: Đang bật" : "Gemini API Key"}</span>
+                        {customApiKey && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-0.5"></span>}
+                      </button>
 
                       <button 
                         onClick={handleSyncAllQuizzes} 
@@ -1703,6 +1679,102 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                     )}
                 </div>
              </div>
+        </div>
+      )}
+
+      {/* Gemini API Key Configuration Modal */}
+      {isApiKeyModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[5000] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white max-w-lg w-full rounded-[2.5rem] border-4 border-white shadow-2xl p-8 overflow-hidden animate-scale-up space-y-6">
+            <div className="flex items-center justify-between border-b pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                  <Key size={22} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 uppercase tracking-tight text-base">Cấu hình Gemini API Key</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Dùng cho AI soạn đề & bóc tách PDF / Văn bản</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsApiKeyModalOpen(false)}
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                  Mã API Key (AI Studio)
+                </label>
+                {customApiKey ? (
+                  <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                    <Check size={10} /> Đang dùng Key riêng
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold uppercase text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                    {isSuperAdmin ? 'Đang dùng Key mặc định' : 'Chưa cài Key'}
+                  </span>
+                )}
+              </div>
+
+              <div className="relative flex items-center">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  placeholder={isSuperAdmin ? "Mặc định dùng Key hệ thống (nhập để đổi)..." : "Dán mã AI Studio API Key vào đây..."}
+                  value={customApiKey}
+                  onChange={(e) => handleApiKeyChange(e.target.value)}
+                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 pr-20 text-xs font-mono font-medium outline-none focus:border-blue-500 focus:bg-white transition-all text-slate-800"
+                />
+                <div className="absolute right-2 flex items-center gap-1">
+                  {customApiKey && (
+                    <button
+                      type="button"
+                      onClick={() => handleApiKeyChange('')}
+                      className="text-[9px] font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                      title="Xóa Key"
+                    >
+                      Xóa
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 transition-colors"
+                    title={showApiKey ? "Ẩn Key" : "Hiện Key"}
+                  >
+                    {showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] pt-1">
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline font-bold flex items-center gap-1"
+                >
+                  <Sparkles size={12} /> Lấy API Key miễn phí tại Google AI Studio
+                </a>
+              </div>
+            </div>
+
+            <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 text-[11px] text-slate-600 space-y-1">
+              <p className="font-bold text-blue-900">💡 Lưu ý quan trọng:</p>
+              <p>Key được lưu an toàn trên trình duyệt cá nhân của bạn. Không ảnh hưởng và không can thiệp đến tài khoản của các giáo viên khác.</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsApiKeyModalOpen(false)}
+              className="w-full py-3.5 bg-slate-900 hover:bg-black text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg active:scale-95"
+            >
+              Lưu & Đóng
+            </button>
+          </div>
         </div>
       )}
 
