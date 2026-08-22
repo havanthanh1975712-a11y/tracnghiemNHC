@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EduQuiz VN - Trắc nghiệm Online</title>
+    <!-- Tailwind CSS (Bản CDN dùng nhanh, khi build Vite sẽ tự tối ưu sau nếu cấu hình PostCSS, nhưng để CDN này cho an toàn khi bạn chưa rành config) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#3b82f6',
+              secondary: '#6366f1',
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- Katex CSS cho công thức toán học -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.86.2"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-50 text-gray-900 font-sans antialiased">
+    <div id="root"></div>
+    <!-- Entry point chuẩn cho Vite -->
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

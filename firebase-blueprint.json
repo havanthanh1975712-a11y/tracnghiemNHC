@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "User": {
+      "collection": "users",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "username": { "type": "string", "required": true },
+        "password": { "type": "string", "required": true },
+        "role": { "type": "string", "required": true },
+        "fullName": { "type": "string", "required": true },
+        "studentCode": { "type": "string", "required": false },
+        "grade": { "type": "string", "required": false },
+        "points": { "type": "number", "required": false },
+        "classId": { "type": "string", "required": false },
+        "className": { "type": "string", "required": false },
+        "academicYear": { "type": "string", "required": false },
+        "data": { "type": "object", "required": false }
+      }
+    },
+    "Quiz": {
+      "collection": "quizzes",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "title": { "type": "string", "required": true },
+        "grade": { "type": "string", "required": true },
+        "type": { "type": "string", "required": true },
+        "isPublished": { "type": "boolean", "required": true },
+        "questionCount": { "type": "number", "required": false },
+        "attemptCount": { "type": "number", "required": false },
+        "data": { "type": "object", "required": true }
+      }
+    },
+    "Result": {
+      "collection": "results",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "quizId": { "type": "string", "required": true },
+        "studentId": { "type": "string", "required": true },
+        "studentName": { "type": "string", "required": true },
+        "studentCode": { "type": "string", "required": false },
+        "score": { "type": "number", "required": true },
+        "submittedAt": { "type": "string", "required": true },
+        "data": { "type": "object", "required": true }
+      }
+    },
+    "Chapter": {
+      "collection": "chapters",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "grade": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "order": { "type": "number", "required": true },
+        "data": { "type": "object", "required": true }
+      }
+    },
+    "ClassRoom": {
+      "collection": "classes",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "academicYear": { "type": "string", "required": false },
+        "grade": { "type": "string", "required": true },
+        "data": { "type": "object", "required": true }
+      }
+    },
+    "Question": {
+      "collection": "bank_questions",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "data": { "type": "object", "required": true }
+      }
+    },
+    "ExamSession": {
+      "collection": "exam_sessions",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "quizId": { "type": "string", "required": true },
+        "studentId": { "type": "string", "required": true },
+        "data": { "type": "object", "required": true }
+      }
+    },
+    "PublishedResult": {
+      "collection": "published_results",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "quizId": { "type": "string", "required": true },
+        "quizTitle": { "type": "string", "required": true },
+        "publishedAt": { "type": "string", "required": true },
+        "data": { "type": "object", "required": true }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "EduQuiz VN",
+  "description": "Nền tảng thi trắc nghiệm trực tuyến dành cho học sinh THPT (Lớp 10, 11, 12) với sự hỗ trợ của AI và chế độ khung giờ mở đề linh hoạt.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
