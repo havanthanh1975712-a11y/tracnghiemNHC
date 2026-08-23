@@ -4,26 +4,48 @@ import { Question, Grade, QuestionLevel, SubQuestion } from "../types";
 import { v4 as uuidv4 } from 'uuid';
 import { normalizeFullText, cleanLatexTextTags } from './vietnameseFixer';
 
-const cleanJsonString = (str: string): string => {
-    let cleaned = str.replace(/```json/gi, "").replace(/```/gi, "").trim();
-    // Khắc phục lỗi phổ biến: \text{...} trong chuỗi JSON bị \t biến thành ký tự Tab ASCII 9
-    // Thay thế \text{...} và \mathrm{...} trong chuỗi JSON trước khi parse thành nội dung thẳng
-    cleaned = cleaned.replace(/\\text\s*\{([^{}]*)\}/g, '$1');
-    cleaned = cleaned.replace(/\\mathrm\s*\{([^{}]*)\}/g, '$1');
-    cleaned = cleaned.replace(/\t+ext\s*\{([^{}]*)\}/g, '$1');
-    return cleaned;
+export const cleanJsonString = (str: string): string => {
+    return str.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+};
+
+export const safeParseJsonWithLatex = (inputStr: string): any => {
+    if (!inputStr || typeof inputStr !== 'string') return null;
+    const cleanStr = cleanJsonString(inputStr);
+
+    // Thử parse trực tiếp
+    try {
+        return JSON.parse(cleanStr);
+    } catch (firstErr) {
+        // Nếu thất bại do các ký tự escape LaTeX (như \Delta, \frac, \text, \pm, \alpha, \s, \d...), sửa chữa tự động
+        try {
+            // Thay thế các ký tự escape không hợp lệ trong chuỗi JSON thành escape kép (\\)
+            // JSON chỉ cho phép escape: \" \\ \/ \b \f \n \r \t \uXXXX
+            const fixedEscape = cleanStr.replace(/\\([^"\\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
+            return JSON.parse(fixedEscape);
+        } catch (secondErr) {
+            // Thử dọn dẹp các ký tự điều khiển tab/newline ẩn
+            try {
+                const noInvalidCtrl = cleanStr
+                    .replace(/\r\n/g, "\\n")
+                    .replace(/\n/g, "\\n")
+                    .replace(/\t/g, "\\t");
+                return JSON.parse(noInvalidCtrl);
+            } catch (thirdErr: any) {
+                throw new Error("Cấu trúc file hoặc chuỗi JSON không hợp lệ: " + (firstErr as Error).message);
+            }
+        }
+    }
 };
 
 const normalizeLevel = (val: any): QuestionLevel | undefined => {
     if (!val) return undefined;
     const str = String(val).trim().toUpperCase();
-    if (str === 'B' || str === 'NB' || str.includes('NHẬN BIẾT') || str.includes('BIẾT') || str === 'EASY' || str === 'KNOWLEDGE') return 'B';
-    if (str === 'H' || str === 'TH' || str.includes('THÔNG HIỂU') || str.includes('HIỂU') || str === 'MEDIUM' || str === 'UNDERSTANDING') return 'H';
-    if (str === 'VD' || str.includes('VẬN DỤNG CAO') || str === 'VDC' || str === 'VERY HARD' || str === 'VHARD') {
-        if (str === 'VDC' || str.includes('CAO') || str === 'VERY HARD' || str === 'VHARD') return 'VDC';
+    if (str === 'B' || str === 'NB' || str.includes('NHẬN BIẾT') || str.includes('BIẾT') || str === 'EASY' || str.includes('KNOW')) return 'B';
+    if (str === 'H' || str === 'TH' || str.includes('THÔNG HIỂU') || str.includes('HIỂU') || str === 'MEDIUM' || str.includes('UNDERSTAND')) return 'H';
+    if (str === 'VD' || str.includes('VẬN DỤNG CAO') || str === 'VDC' || str === 'VERY HARD' || str === 'VHARD' || str.includes('ANALY') || str.includes('APPLY') || str === 'HARD') {
+        if (str === 'VDC' || str.includes('CAO') || str === 'VERY HARD' || str === 'VHARD' || str.includes('ANALY')) return 'VDC';
         return 'VD';
     }
-    if (str === 'HARD' || str === 'APPLICATION') return 'VD';
     return undefined;
 };
 
@@ -342,7 +364,7 @@ export const parseQuestionsFromPDF = async (base64Data: string, customApiKey?: s
     });
 
     const textOutput = response.text || "[]";
-    const rawData = JSON.parse(cleanJsonString(textOutput));
+    const rawData = safeParseJsonWithLatex(textOutput);
     
     return processAIQuestions(rawData);
   } catch (error: any) {
@@ -354,8 +376,7 @@ export const parseQuestionsFromJSON = (input: string | any): { questions: Questi
     let parsed: any;
     if (typeof input === 'string') {
         try {
-            const cleanStr = cleanJsonString(input);
-            parsed = JSON.parse(cleanStr);
+            parsed = safeParseJsonWithLatex(input);
         } catch (e: any) {
             throw new Error("Cấu trúc file hoặc chuỗi JSON không hợp lệ. Vui lòng kiểm tra lại cú pháp JSON!");
         }
@@ -681,7 +702,7 @@ YÊU CẦU ĐẶC BIỆT (BẮT BUỘC):
             }
         });
 
-        const raw = JSON.parse(cleanJsonString(response.text || "{}"));
+        const raw = safeParseJsonWithLatex(response.text || "{}") || {};
         return {
             solution: normalizeFullText(raw.solution || ""),
             correctAnswer: raw.correctAnswer ? cleanLatexTextTags(raw.correctAnswer) : undefined
