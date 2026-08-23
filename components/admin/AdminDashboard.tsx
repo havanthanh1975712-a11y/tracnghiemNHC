@@ -15,7 +15,7 @@ import {
 } from '../../services/storage';
 import { generateQuizFromPrompt, parseQuestionsFromPDF, parseQuestionsFromText } from '../../services/gemini';
 import { normalizeFullText } from '../../services/vietnameseFixer';
-import { isSameSubject } from '../../services/subjectUtils';
+import { isSameSubject, STANDARD_SUBJECTS } from '../../services/subjectUtils';
 import { Quiz, User, Result, Chapter, Question, QuestionType, Grade, QuizType, Role, ClassRoom } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -23,7 +23,7 @@ import Papa from 'papaparse';
 import { 
   LayoutDashboard, Users, BarChart3, ShieldAlert, Sparkles, FolderTree, 
   Plus, Database, Loader2, X, RefreshCw, AlertTriangle, FileUp, DatabaseZap, GraduationCap,
-  ShieldCheck, UserCheck, Key, Eye, EyeOff, Check
+  ShieldCheck, UserCheck, Key, Eye, EyeOff, Check, BookOpen
 } from 'lucide-react';
 
 import QuizList from './QuizList';
@@ -172,6 +172,8 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [quizTitle, setQuizTitle] = useState('');
   const [quizGrade, setQuizGrade] = useState<Grade>('12');
   const [quizType, setQuizType] = useState<QuizType>('test');
+  const [quizSubject, setQuizSubject] = useState<string>(() => currentUser?.subject || 'Toán');
+  const [mySubject, setMySubject] = useState<string>(() => currentUser?.subject || 'Toán');
   const [isPublished, setIsPublished] = useState(false);
   const [isMonitored, setIsMonitored] = useState(false);
   const [isUnlisted, setIsUnlisted] = useState(false);
@@ -186,6 +188,28 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.subject) {
+      setMySubject(currentUser.subject);
+    }
+  }, [currentUser?.subject]);
+
+  const handleUpdateMySubject = async (newSubject: string) => {
+    setMySubject(newSubject);
+    setQuizSubject(newSubject);
+    if (currentUser) {
+      const updated = { ...currentUser, subject: newSubject };
+      try {
+        await saveUser(updated);
+        localStorage.setItem('eduquiz_current_user', JSON.stringify(updated));
+        showAlert("Cập nhật môn dạy", `Đã thiết lập môn giảng dạy thành "${newSubject}"!`, "success");
+      } catch (err: any) {
+        console.error("Lỗi cập nhật môn:", err);
+      }
+    }
+  };
+
   const [customApiKey, setCustomApiKey] = useState<string>(() => {
     try {
       return localStorage.getItem('eduquiz_gemini_api_key') || '';
@@ -519,6 +543,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   // Quiz Handlers
   const handleCreateQuiz = () => {
     setEditingQuizId(null); setQuizTitle(''); setQuizGrade('12'); setQuizType('test');
+    setQuizSubject(mySubject || currentUser?.subject || 'Toán');
     setIsPublished(false); setIsMonitored(false); setIsUnlisted(false);
     setIsSharedWithTeachers(false);
     setTargetType(isSuperAdmin ? 'all' : 'classes'); setAssignedClassIds([]);
@@ -533,6 +558,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
         const fullQuiz = await getQuizById(quiz.id);
         if (fullQuiz) {
             setEditingQuizId(fullQuiz.id); setQuizTitle(fullQuiz.title); setQuizGrade(fullQuiz.grade);
+            setQuizSubject(fullQuiz.subject || mySubject || currentUser?.subject || 'Toán');
             setQuizType(fullQuiz.type); setIsPublished(fullQuiz.isPublished); setIsMonitored(fullQuiz.isMonitored || false);
             setIsUnlisted(fullQuiz.isUnlisted || false);
             setIsSharedWithTeachers(Boolean(fullQuiz.isSharedWithTeachers));
@@ -738,7 +764,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
     
     setIsSavingInProgress(true);
     const existingQuiz = editingQuizId ? quizzes.find(q => q.id === editingQuizId) : null;
-    const quizSubject = existingQuiz?.subject || currentUser?.subject || '';
+    const finalQuizSubject = quizSubject || existingQuiz?.subject || mySubject || currentUser?.subject || 'Toán';
 
     const finalTargetType = isSuperAdmin ? (targetType || 'all') : 'classes';
 
@@ -747,7 +773,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
       title: quizTitle, 
       grade: quizGrade, 
       type: quizType,
-      subject: quizSubject,
+      subject: finalQuizSubject,
       isPublished, 
       isMonitored, 
       isUnlisted, 
@@ -763,7 +789,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
       assignedClassIds: finalTargetType === 'all' ? [] : (assignedClassIds || []),
       questions: questions.map(q => ({
         ...q,
-        subject: q.subject || quizSubject,
+        subject: q.subject || finalQuizSubject,
         createdBy: q.createdBy || currentUser?.id,
         createdByName: q.createdByName || currentUser?.fullName
       })), 
@@ -1279,6 +1305,44 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
             );
           })}
         </nav>
+        
+        {/* User Info & Teaching Subject Selector */}
+        <div className="p-3 lg:p-4 border-t border-white/10 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+              {currentUser?.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'A'}
+            </div>
+            <div className="hidden lg:block overflow-hidden">
+              <p className="text-xs font-black truncate">{currentUser?.fullName || 'Super Admin'}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">{isSuperAdmin ? 'Tổng Quản Trị' : 'Giáo Viên'}</p>
+            </div>
+          </div>
+          
+          <div className="hidden lg:block bg-white/5 p-2.5 rounded-xl border border-white/10 space-y-1.5">
+            <label className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1.5">
+              <BookOpen size={11} className="text-blue-400"/> Môn giảng dạy:
+            </label>
+            {isSuperAdmin ? (
+              <select
+                value={mySubject}
+                onChange={(e) => handleUpdateMySubject(e.target.value)}
+                className="w-full bg-slate-800 text-white text-[11px] font-bold rounded-lg px-2.5 py-1.5 border border-white/15 outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                title="Super Admin: Chọn môn giảng dạy để lọc và gán đề"
+              >
+                {STANDARD_SUBJECTS.map(subj => (
+                  <option key={subj} value={subj}>Môn {subj}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-white/10 flex items-center justify-between">
+                <span className="text-white text-xs font-black uppercase tracking-wider">
+                  Môn {mySubject || currentUser?.subject || 'Toán'}
+                </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Môn đã liên kết với tài khoản" />
+              </div>
+            )}
+          </div>
+        </div>
       </aside>
 
       <main className="flex-1 h-screen overflow-y-auto custom-scrollbar bg-slate-50">
@@ -1315,6 +1379,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                 <QuizEditor
                     editingId={editingQuizId} title={quizTitle} setTitle={setQuizTitle}
                     grade={quizGrade} setGrade={setQuizGrade} quizType={quizType} setQuizType={setQuizType}
+                    subject={quizSubject} setSubject={setQuizSubject}
                     isPublished={isPublished} setIsPublished={setIsPublished} isMonitored={isMonitored} setIsMonitored={setIsMonitored}
                     isUnlisted={isUnlisted} setIsUnlisted={setIsUnlisted}
                     isSharedWithTeachers={isSharedWithTeachers} setIsSharedWithTeachers={setIsSharedWithTeachers}
