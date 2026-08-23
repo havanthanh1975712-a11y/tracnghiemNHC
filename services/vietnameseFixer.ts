@@ -170,22 +170,65 @@ export function repairVietnameseTextOnly(raw: string): string {
 }
 
 /**
+ * Chuẩn hóa và làm sạch triệt để các thẻ \text{...}, \mathrm{...}, ext{...} (do lỗi JSON escape \t biến thành tab/ext)
+ * Chuyển đơn vị đo, đại lượng, chỉ số về dạng văn bản trực tiếp hoặc ký hiệu tự nhiên
+ */
+export function cleanLatexTextTags(text: string): string {
+    if (!text) return '';
+    let res = text;
+
+    // 1. Sửa lỗi \t (ký tự Tab ASCII 9) + ext{...} hoặc \text{...} do JSON.parse chuyển \t thành tab
+    res = res.replace(/[\t]+\s*ext\s*\{([^{}]*)\}/gi, '$1');
+
+    // 2. Chuyển đổi công thức kết thúc bằng đơn vị bọc trong \text{} hoặc ext{} ra ngoài dấu $
+    // Ví dụ: $v = 10\text{ m/s}$ hoặc $v = 10 ext{m/s}$ -> $v = 10$ m/s
+    // Ví dụ: $m = 2\text{ kg}$ -> $m = 2$ kg
+    // Ví dụ: $5\text{ cm}$ -> $5$ cm
+    // Ví dụ: $100\text{ W}$ -> $100$ W
+    res = res.replace(/\$([^$]*?)(?:\s*(?:\\,|\\;|\\quad|\\qquad)?\s*(?:\\text|\\mathrm|\\mbox|\bext)\s*\{\s*([a-zA-Z0-9\/\^\s°%Ωμ\.\-]+?)\s*\})\s*\$/g, (_match, p1, p2) => {
+        const cleanP1 = p1.trim();
+        const cleanP2 = p2.trim();
+        if (!cleanP1) return cleanP2;
+        return `$${cleanP1}$ ${cleanP2}`;
+    });
+
+    // 3. Sửa các chỉ số dưới / chỉ số trên có chứa \text{} hoặc ext{}
+    // Ví dụ: _{ext{max}} -> _{max}, _{ext{ms}} -> _{ms}, _{\text{hd}} -> _{hd}, ^{\text{max}} -> ^{max}
+    res = res.replace(/([_^\s=])(?:\\text|\\mathrm|\\mbox|\bext)\s*\{([^{}]*)\}/g, '$1{$2}');
+    // Rút gọn bớt ngoặc kép thừa nếu có: _{{max}} -> _{max}
+    res = res.replace(/([_^])\{\{([^{}]+)\}\}/g, '$1{$2}');
+
+    // 4. Xóa toàn bộ các thẻ \text{...}, \mathrm{...}, \mbox{...}, ext{...} còn lại ở cả trong và ngoài dấu $
+    // Ví dụ: \text{m/s} -> m/s, ext{cm} -> cm
+    res = res.replace(/(?:\\text|\\mathrm|\\mbox|\bext)\s*\{([^{}]*)\}/g, '$1');
+
+    // 5. Xóa các tàn dư \text đứng trơ trọi nếu có
+    res = res.replace(/\\text\b/g, '');
+
+    return res;
+}
+
+/**
  * Chuẩn hóa toàn bộ chuỗi nhưng bảo vệ an toàn 100% cho các khối LaTeX $...$
+ * và tự động dọn sạch các lỗi \text / ext
  */
 export function normalizeFullText(text: string): string {
     if (!text) return '';
 
+    // Bước 1: Dọn dẹp lỗi \text / ext trên toàn chuỗi
+    const cleanedText = cleanLatexTextTags(text);
+
     // Nếu không có ký tự $, chuẩn hóa trực tiếp text
-    if (!text.includes('$')) {
-        return repairVietnameseTextOnly(text);
+    if (!cleanedText.includes('$')) {
+        return repairVietnameseTextOnly(cleanedText);
     }
 
     // Tách chuỗi thành các phần LaTeX ($...$) và văn bản thường
-    const parts = text.split(/(\$.*?\$)/g);
+    const parts = cleanedText.split(/(\$.*?\$)/g);
     
     return parts.map(part => {
         if (part.startsWith('$') && part.endsWith('$')) {
-            // Khối LaTeX: Giữ NGUYÊN BẢN để KaTeX xử lý chính xác tuyệt đối
+            // Khối LaTeX: Đã được làm sạch \text, giữ nguyên để KaTeX render
             return part;
         }
         // Khối văn bản thường: Sửa lỗi tiếng Việt bị vỡ dấu
