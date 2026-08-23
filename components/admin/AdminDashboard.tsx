@@ -1255,7 +1255,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
       <aside className="w-16 lg:w-64 bg-slate-900 text-white flex flex-col shrink-0 transition-all">
         <div className="p-4 lg:p-8 border-b border-white/10 text-center lg:text-left">
           <h2 className="text-xl font-black uppercase tracking-tighter italic">
-            <span className="hidden lg:inline">EduMenu <span className="text-blue-500">_VATLY</span></span>
+            <span className="hidden lg:inline">EDU_QUIZ <span className="text-blue-500">_List</span></span>
             <span className="lg:hidden text-blue-500">EQ</span>
           </h2>
         </div>
