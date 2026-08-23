@@ -2,10 +2,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, Grade, QuestionLevel, SubQuestion } from "../types";
 import { v4 as uuidv4 } from 'uuid';
-import { normalizeFullText } from './vietnameseFixer';
+import { normalizeFullText, cleanLatexTextTags } from './vietnameseFixer';
 
 const cleanJsonString = (str: string): string => {
-    return str.replace(/```json/gi, "").replace(/```/gi, "").trim();
+    let cleaned = str.replace(/```json/gi, "").replace(/```/gi, "").trim();
+    // Khắc phục lỗi phổ biến: \text{...} trong chuỗi JSON bị \t biến thành ký tự Tab ASCII 9
+    // Thay thế \text{...} và \mathrm{...} trong chuỗi JSON trước khi parse thành nội dung thẳng
+    cleaned = cleaned.replace(/\\text\s*\{([^{}]*)\}/g, '$1');
+    cleaned = cleaned.replace(/\\mathrm\s*\{([^{}]*)\}/g, '$1');
+    cleaned = cleaned.replace(/\t+ext\s*\{([^{}]*)\}/g, '$1');
+    return cleaned;
 };
 
 const normalizeLevel = (val: any): QuestionLevel | undefined => {
@@ -23,7 +29,7 @@ const normalizeLevel = (val: any): QuestionLevel | undefined => {
 
 const extractLevelFromText = (text: string): { cleanText: string; level?: QuestionLevel } => {
     if (!text) return { cleanText: "" };
-    let cleanText = text;
+    let cleanText = cleanLatexTextTags(text);
     let level: QuestionLevel | undefined = undefined;
 
     // Pattern: [B], (B), <B>, [NB], [H], [TH], [VD], [VDC] at start or inside
@@ -38,7 +44,7 @@ const extractLevelFromText = (text: string): { cleanText: string; level?: Questi
 
 const stripOptionLabel = (text: string): string => {
     if (!text) return "";
-    // Chuẩn hóa dấu tiếng Việt và LaTeX trước
+    // Chuẩn hóa dấu tiếng Việt và làm sạch thẻ \text / ext
     let cleaned = normalizeFullText(text.trim());
     // Xử lý đệ quy để xóa nhiều lớp nhãn (VD: "A. A. Nội dung")
     const labelRegex = /^(\*?[A-Za-z0-9][\.\)\/\-:\s]\s*)/g;
@@ -46,46 +52,67 @@ const stripOptionLabel = (text: string): string => {
     while (labelRegex.test(cleaned)) {
         cleaned = cleaned.replace(labelRegex, "").trim();
     }
-    return cleaned;
+    return cleanLatexTextTags(cleaned);
 };
 
-const EXTRACTION_INSTRUCTION = `Bạn là chuyên gia trích xuất đề thi THPT quốc gia Việt Nam (Toán, Lý, Hóa).
-NHIỆM VỤ: Chuyển đổi nội dung được cung cấp thành danh sách JSON chuẩn.
+const EXTRACTION_INSTRUCTION = `Bạn là chuyên gia khảo thí và giáo viên sư phạm hàng đầu THPT quốc gia Việt Nam (Toán, Vật lí, Hóa học, Sinh học, Tin học, Ngữ văn, Lịch sử, Địa lí, GDCD, Tiếng Anh).
 
-QUY TẮC TRÍCH XUẤT (CỰC KỲ QUAN TRỌNG):
-1. PHÂN TÍCH ĐÁP ÁN: Quét toàn bộ nội dung để tìm bảng đáp án (thường ở cuối).
+NHIỆM VỤ:
+1. Trích xuất đầy đủ, trung thực và chính xác toàn bộ câu hỏi, phương án, mức độ nhận biết từ tài liệu được cung cấp (file PDF hoặc đoạn văn bản).
+2. GIẢI CHI TIẾT 100% TẤT CẢ CÁC CÂU HỎI (BẮT BUỘC): Bất kể trong tài liệu gốc có sẵn lời giải hay chỉ có đề và đáp án, AI BẮT BUỘC PHẢI TỰ ĐỘNG GIẢI CHI TIẾT TỪNG BƯỚC CHO TỪNG CÂU HỎI VÀ ĐIỀN ĐẦY ĐỦ VÀO TRƯỜNG 'solution'. TUYỆT ĐỐI KHÔNG ĐƯỢC ĐỂ TRỐNG TRƯỜNG 'solution' Ở BẤT KỲ CÂU HỎI NÀO.
+
+QUY TẮC TRÍCH XUẤT VÀ LỜI GIẢI CHI TIẾT (CỰC KỲ QUAN TRỌNG):
+1. PHÂN TÍCH ĐÁP ÁN:
+   - Quét toàn bộ nội dung để tìm bảng đáp án (thường ở cuối trang hoặc đính kèm).
+   - Nếu tài liệu không có bảng đáp án, AI phải tự giải chính xác để xác định 'correctAnswer'.
+
 2. NHẬN DIỆN MỨC ĐỘ (level: "B" | "H" | "VD" | "VDC"):
-   - Tự động nhận diện nhãn mức độ: [B], (B) -> "B" (Nhận biết); [H], (H) -> "H" (Thông hiểu); [VD], (VD) -> "VD" (Vận dụng); [VDC], (VDC) -> "VDC" (Vận dụng cao).
+   - Tự động nhận diện nhãn mức độ: [B], (B), [NB] -> "B" (Nhận biết); [H], (H), [TH] -> "H" (Thông hiểu); [VD], (VD) -> "VD" (Vận dụng); [VDC], (VDC) -> "VDC" (Vận dụng cao).
    - Áp dụng cho cả câu hỏi chính và từng ý con a, b, c, d của câu Đúng/Sai (Group-TF).
+
 3. MCQ (Trắc nghiệm 4 lựa chọn):
-   - 'correctAnswer': BẮT BUỘC điền nội dung của phương án đúng (không kèm nhãn A, B...).
-   - LaTeX: Mọi phương án nếu chứa ký hiệu toán học BẮT BUỘC phải bọc trong $...$. (VD: "$x^2$").
-4. GROUP-TF (Đúng/Sai):
-   - 'subQuestions': Phải có đủ 4 ý (a, b, c, d). Mỗi ý có 'text', 'correctAnswer' ("True" hoặc "False") và 'level' ("B"|"H"|"VD"|"VDC" nếu có).
-   - 'solution': BẮT BUỘC giải thích chi tiết cho cả 4 ý theo mẫu: a) Đúng... b) Sai...
+   - 'correctAnswer': BẮT BUỘC là nội dung chính xác của phương án đúng (không kèm nhãn A, B, C, D).
+   - 'solution' (LỜI GIẢI BẮT BUỘC): Trình bày chi tiết từng bước tính toán, suy luận, áp dụng định luật/công thức để chứng minh phương án đúng và giải thích ngắn gọn vì sao các phương án khác sai.
+
+4. GROUP-TF (Trắc nghiệm Đúng/Sai):
+   - 'subQuestions': BẮT BUỘC có đủ 4 ý (a, b, c, d). Mỗi ý gồm 'text', 'correctAnswer' ("True" hoặc "False") và 'level' ("B"|"H"|"VD"|"VDC").
+   - 'solution' (LỜI GIẢI BẮT BUỘC CHO CẢ 4 Ý): BẮT BUỘC giải thích chi tiết, sư phạm và rõ ràng cho TẤT CẢ 4 Ý theo đúng cấu trúc:
+     a) Đúng. [Giải thích chi tiết phép tính/định lý...]
+     b) Sai. [Chỉ rõ điểm sai và tính toán kết quả đúng...]
+     c) Đúng. [Giải thích chi tiết...]
+     d) Sai. [Giải thích chi tiết...]
+
 5. SHORT (Trả lời ngắn):
    - 'type': BẮT BUỘC là "short".
-   - 'correctAnswer': BẮT BUỘC là giá trị số (VD: "12", "0.5").
-   - 'options': Để null hoặc [].
-6. LaTeX: Mọi công thức toán học phải bọc trong $...$ (VD: $x^2 + y^2 = R^2$). Giữ nguyên dấu $ trong cả nội dung câu hỏi và các phương án.
-7. LÀM SẠCH: Xóa nhãn "A.", "B.", "a)", "b)", "[B]", "(H)"... ở đầu nội dung nhưng giữ lại dấu $ của LaTeX.
+   - 'correctAnswer': BẮT BUỘC là giá trị con số chính xác (VD: "12", "-3.5", "0.25").
+   - 'solution' (LỜI GIẢI BẮT BUỘC): Trình bày các bước lập luận, biến đổi toán/lý/hóa chi tiết dẫn đến kết quả con số cuối cùng.
 
-VÍ DỤ CẤU TRÚC:
-- MCQ: {"type": "mcq", "level": "B", "text": "Cho hàm số...", "options": ["$1$", "$2$", "$3$", "$4$"], "correctAnswer": "$1$", "solution": "..."}
-- GROUP-TF: {"type": "group-tf", "level": "H", "text": "Cho hàm số...", "subQuestions": [{"text": "...", "correctAnswer": "True", "level": "B"}, {"text": "...", "correctAnswer": "False", "level": "H"}, ...], "solution": "a) Đúng... b) Sai..."}
-- SHORT: {"type": "short", "level": "VD", "text": "Tìm số nghiệm...", "correctAnswer": "12.5", "solution": "..."}
+6. QUY TẮC CÔNG THỨC & ĐƠN VỊ (QUAN TRỌNG NHẤT):
+   - Mọi công thức toán học phải bọc trong cặp dấu $...$ (VD: $x^2 + y^2 = R^2$, $\\Delta t = 2$ s).
+   - TUYỆT ĐỐI KHÔNG dùng thẻ \\text{...}, \\mathrm{...}, \\mbox{...} (để tránh lỗi JSON escape \\t thành 'ext').
+   - Đơn vị đo (m/s, km/h, kg, g, N, J, W, V, A, Hz, s, min, h, cm, rad/s...): Viết dạng văn bản thường ngoài dấu $ (VD: '$v = 20$ m/s', '$m = 5$ kg') hoặc viết trực tiếp (VD: '$20$ m/s').
+   - Chỉ số trên/dưới (VD: $v_{max}$, $F_{ms}$, $m_1$, $x_2$): Viết thẳng chữ vào chỉ số không bọc \\text{}.
+
+7. LÀM SẠCH NHÃN:
+   - Xóa nhãn "A.", "B.", "a)", "b)", "[B]", "(H)"... ở đầu nội dung câu hỏi và các phương án nhưng giữ nguyên dấu $ của LaTeX.
+
+VÍ DỤ CẤU TRÚC JSON:
+- MCQ: {"type": "mcq", "level": "B", "text": "Một vật dao động điều hòa...", "options": ["$10$ cm/s", "$20$ cm/s", "$30$ cm/s", "$40$ cm/s"], "correctAnswer": "$20$ cm/s", "solution": "Vận tốc cực đại của dao động điều hòa được tính theo công thức: $v_{max} = \\omega A = 10 \\cdot 2 = 20$ cm/s. Do đó chọn đáp án đúng là $20$ cm/s."}
+- GROUP-TF: {"type": "group-tf", "level": "H", "text": "Cho một vật dao động điều hòa có phương trình $x = 5\\cos(2\\pi t)$ cm...", "subQuestions": [{"text": "Biên độ dao động của vật là $5$ cm.", "correctAnswer": "True", "level": "B"}, {"text": "Tần số góc của dao động là $4\\pi$ rad/s.", "correctAnswer": "False", "level": "B"}, {"text": "Vận tốc cực đại của vật là $10\\pi$ cm/s.", "correctAnswer": "True", "level": "H"}, {"text": "Gia tốc cực đại của vật là $100\\pi^2$ cm/s$^2$.", "correctAnswer": "False", "level": "VD"}], "solution": "a) Đúng. Từ phương trình $x = 5\\cos(2\\pi t)$ cm, ta có biên độ $A = 5$ cm.\\nb) Sai. Tần số góc là $\\omega = 2\\pi$ rad/s (không phải $4\\pi$).\\nc) Đúng. Vận tốc cực đại $v_{max} = \\omega A = 2\\pi \\cdot 5 = 10\\pi$ cm/s.\\nd) Sai. Gia tốc cực đại $a_{max} = \\omega^2 A = (2\\pi)^2 \\cdot 5 = 20\\pi^2$ cm/s$^2$ (không phải $100\\pi^2$)."}
+- SHORT: {"type": "short", "level": "VD", "text": "Một mạch dao động LC lí tưởng gồm cuộn cảm thuần $L = 2$ mH và tụ điện $C = 8$ pF. Chu kỳ dao động riêng của mạch là bao nhiêu microgiây (lấy $\\pi = 3.14$, làm tròn đến 2 chữ số thập phân)?", "correctAnswer": "0.79", "solution": "Áp dụng công thức chu kỳ dao động điện từ riêng của mạch LC:\\n$T = 2\\pi\\sqrt{LC} = 2 \\cdot 3.14 \\cdot \\sqrt{2 \\cdot 10^{-3} \\cdot 8 \\cdot 10^{-12}} = 6.28 \\cdot 4 \\cdot 10^{-7} = 2.512 \\cdot 10^{-6}$ s = $2.51$ $\\mu$s.\\nKết quả làm tròn là: $0.79$."}
 `;
 
 const processAIQuestions = (rawData: any[]): Question[] => {
     return rawData.map((item: any) => {
         const type = item.type?.toLowerCase() || 'mcq';
         const strippedOptions = item.options ? item.options.map((opt: string) => stripOptionLabel(opt)) : (type === 'mcq' ? [] : undefined);
-        let finalCorrectAnswer = item.correctAnswer;
+        let finalCorrectAnswer = item.correctAnswer ? cleanLatexTextTags(String(item.correctAnswer)) : item.correctAnswer;
 
         // Xử lý trích xuất level từ text câu hỏi nếu chưa có
         let extractedMain = extractLevelFromText(item.text || "");
         let finalLevel = normalizeLevel(item.level) || extractedMain.level;
-        let cleanedText = extractedMain.cleanText;
+        let cleanedText = normalizeFullText(extractedMain.cleanText);
+        let cleanedSolution = normalizeFullText(item.solution || "");
 
         if (type === 'mcq' && item.correctAnswer && item.options) {
             let ansText = item.correctAnswer.trim();
@@ -126,6 +153,7 @@ const processAIQuestions = (rawData: any[]): Question[] => {
             type,
             id: uuidv4(),
             text: cleanedText,
+            solution: cleanedSolution,
             level: finalLevel,
             points: item.points || (type === 'mcq' ? 0.25 : type === 'group-tf' ? 1.0 : 0.5),
             options: strippedOptions,
@@ -196,7 +224,11 @@ YÊU CẦU CHI TIẾT:
 ${matrixPrompt}
 
 QUY TẮC KỸ THUẬT BẮT BUỘC:
-1. LaTeX: Mọi biểu thức, công thức, ký hiệu toán/lý/hóa (VD: $\\Delta\\Phi$, $\\Omega$, $x^2$, $\\vec{v}$) BẮT BUỘC phải nằm trong cặp dấu $...$. Quy tắc này áp dụng cho NỘI DUNG CÂU HỎI, CÁC PHƯƠNG ÁN (Options), và LỜI GIẢI (Solution).
+1. LaTeX & ĐƠN VỊ:
+   - Mọi biểu thức, công thức, ký hiệu toán/lý/hóa (VD: $\\Delta\\Phi$, $\\Omega$, $x^2$, $\\vec{v}$) BẮT BUỘC phải nằm trong cặp dấu $...$. Quy tắc này áp dụng cho NỘI DUNG CÂU HỎI, CÁC PHƯƠNG ÁN (Options), và LỜI GIẢI (Solution).
+   - TUYỆT ĐỐI KHÔNG dùng thẻ \\text{...}, \\mathrm{...}, \\mbox{...} trong công thức (tránh lỗi JSON escape \\t thành 'ext').
+   - Đơn vị đo (m/s, km/h, kg, g, N, J, W, V, A, Hz, s, min, h, cm, rad/s...): Hãy viết dạng văn bản thường ngoài dấu $ (VD: '$v = 20$ m/s', '$m = 5$ kg', '$F = 10$ N') hoặc viết trực tiếp (VD: '$20$ m/s').
+   - Chỉ số trên/dưới (VD: $v_{max}$, $F_{ms}$, $m_1$, $x_2$, $I_{hd}$): Đánh trực tiếp chữ vào chỉ số không bọc \\text{}.
 2. Solution (Lời giải): Phải có lời giải chi tiết, sư phạm cho từng câu.
 3. MCQ: 'correctAnswer' phải là nội dung của phương án đúng (không kèm nhãn A, B, C, D).
 4. GROUP-TF: 
@@ -587,4 +619,102 @@ export const parseQuestionsFromText = async (rawText: string, customApiKey?: str
     } catch (error: any) {
         throw new Error("Lỗi bóc tách văn bản: " + formatGeminiError(error));
     }
+};
+
+export const solveQuestionWithAI = async (
+    question: Question,
+    subject: string = 'Toán',
+    grade: string = '12',
+    customApiKey?: string
+): Promise<{ solution: string; correctAnswer?: string }> => {
+    const ai = getAiClient(customApiKey);
+
+    let questionDesc = `NỘI DUNG CÂU HỎI:\n${question.text}\n`;
+    if (question.type === 'mcq' && question.options) {
+        questionDesc += `CÁC PHƯƠNG ÁN:\n${question.options.map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`).join('\n')}\n`;
+        if (question.correctAnswer) {
+            questionDesc += `ĐÁP ÁN ĐÃ CHỌN: ${question.correctAnswer}\n`;
+        }
+    } else if (question.type === 'group-tf' && question.subQuestions) {
+        questionDesc += `CÁC Ý TRẮC NGHIỆM ĐÚNG/SAI:\n${question.subQuestions.map((sq, i) => `${String.fromCharCode(97 + i)}) ${sq.text} (Hiện tại: ${sq.correctAnswer === 'True' ? 'Đúng' : 'Sai'})`).join('\n')}\n`;
+    } else if (question.type === 'short') {
+        if (question.correctAnswer) {
+            questionDesc += `ĐÁP SỐ ĐÃ NHẬP: ${question.correctAnswer}\n`;
+        }
+    }
+
+    const prompt = `Bạn là giáo viên chuyên môn môn ${subject} khối lớp ${grade} THPT Việt Nam.
+NHIỆM VỤ: Hãy giải bài toán/câu hỏi sau một cách chi tiết, sư phạm, bước giải rõ ràng, mạch lạc và chính xác 100%.
+
+${questionDesc}
+
+YÊU CẦU ĐẶC BIỆT (BẮT BUỘC):
+1. LỜI GIẢI CHI TIẾT ('solution'):
+   - Với MCQ (Trắc nghiệm 4 lựa chọn): Trình bày các bước tính toán/lập luận cụ thể và chốt phương án đúng.
+   - Với GROUP-TF (Đúng/Sai): BẮT BUỘC giải thích chi tiết cho cả 4 ý theo mẫu:
+     a) Đúng. [Giải thích chi tiết phép tính/định lý...]
+     b) Sai. [Chỉ rõ điểm sai và tính lại kết quả đúng...]
+     c) Đúng. [Giải thích chi tiết...]
+     d) Sai. [Giải thích chi tiết...]
+   - Với SHORT (Trả lời ngắn): Trình bày các bước giải chi tiết dẫn đến kết quả số cuối cùng.
+2. CÔNG THỨC & ĐƠN VỊ:
+   - Mọi công thức bọc trong $...$.
+   - TUYỆT ĐỐI KHÔNG dùng \\text{...}, \\mathrm{...} (để tránh lỗi JSON escape).
+   - Đơn vị viết bên ngoài dấu $ (VD: '$v = 20$ m/s', '$m = 5$ kg').
+   - Chỉ số dưới viết trực tiếp (VD: $v_{max}$, $F_{ms}$).
+3. ĐÁP ÁN ĐÚNG ('correctAnswer'): Nếu câu hỏi chưa có đáp án hoặc bạn tìm ra đáp án đúng, hãy cung cấp nội dung đáp án đúng.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        solution: { type: Type.STRING },
+                        correctAnswer: { type: Type.STRING, nullable: true }
+                    },
+                    required: ["solution"]
+                }
+            }
+        });
+
+        const raw = JSON.parse(cleanJsonString(response.text || "{}"));
+        return {
+            solution: normalizeFullText(raw.solution || ""),
+            correctAnswer: raw.correctAnswer ? cleanLatexTextTags(raw.correctAnswer) : undefined
+        };
+    } catch (error: any) {
+        throw new Error("Lỗi AI giải câu hỏi: " + formatGeminiError(error));
+    }
+};
+
+export const solveMultipleQuestionsWithAI = async (
+    questions: Question[],
+    subject: string = 'Toán',
+    grade: string = '12',
+    customApiKey?: string,
+    onProgress?: (completed: number, total: number) => void
+): Promise<Question[]> => {
+    const updated: Question[] = [];
+    for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        try {
+            const res = await solveQuestionWithAI(q, subject, grade, customApiKey);
+            updated.push({
+                ...q,
+                solution: res.solution || q.solution,
+                correctAnswer: (q.type !== 'group-tf' && res.correctAnswer && !q.correctAnswer) ? res.correctAnswer : q.correctAnswer
+            });
+        } catch (e) {
+            console.error(`Lỗi giải câu ${i + 1}:`, e);
+            updated.push(q);
+        }
+        if (onProgress) {
+            onProgress(i + 1, questions.length);
+        }
+    }
+    return updated;
 };
