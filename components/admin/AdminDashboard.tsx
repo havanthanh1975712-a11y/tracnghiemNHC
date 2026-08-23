@@ -23,7 +23,7 @@ import Papa from 'papaparse';
 import { 
   LayoutDashboard, Users, BarChart3, ShieldAlert, Sparkles, FolderTree, 
   Plus, Database, Loader2, X, RefreshCw, AlertTriangle, FileUp, DatabaseZap, GraduationCap,
-  ShieldCheck, UserCheck, Key, Eye, EyeOff, Check, BookOpen
+  ShieldCheck, UserCheck, Key, Eye, EyeOff, Check, BookOpen, Server, HardDrive
 } from 'lucide-react';
 
 import QuizList from './QuizList';
@@ -36,6 +36,7 @@ import QuestionBank from './QuestionBank';
 import AIRenderer from './AIRenderer';
 import ClassManager from './ClassManager';
 import TeacherManager from './TeacherManager';
+import DatabaseMonitor from './DatabaseMonitor';
 
 import StudentModal from './StudentModal';
 import StudentDetailModal from './StudentDetailModal';
@@ -43,7 +44,7 @@ import ResultHistoryModal from './ResultHistoryModal';
 import ResultDetailModal from './ResultDetailModal';
 import QuizPreviewModal from './QuizPreviewModal';
 
-type AdminTab = 'quizzes' | 'teachers' | 'classes' | 'students' | 'results' | 'monitor' | 'chapters' | 'bank' | 'ai';
+type AdminTab = 'quizzes' | 'teachers' | 'classes' | 'students' | 'results' | 'monitor' | 'chapters' | 'bank' | 'ai' | 'database';
 
 interface AdminDashboardProps {
   currentUser?: User;
@@ -1255,7 +1256,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
       <aside className="w-16 lg:w-64 bg-slate-900 text-white flex flex-col shrink-0 transition-all">
         <div className="p-4 lg:p-8 border-b border-white/10 text-center lg:text-left">
           <h2 className="text-xl font-black uppercase tracking-tighter italic">
-            <span className="hidden lg:inline">EDU_QUIZ <span className="text-blue-500">_List</span></span>
+            <span className="hidden lg:inline">EDU_QUIZ<span className="text-blue-500">List</span></span>
             <span className="lg:hidden text-blue-500">EQ</span>
           </h2>
         </div>
@@ -1270,6 +1271,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
             { id: 'monitor', icon: ShieldAlert, label: 'Giám sát' },
             { id: 'chapters', icon: FolderTree, label: 'Chương' },
             { id: 'bank', icon: Database, label: 'Ngân hàng' },
+            { id: 'database', icon: Server, label: 'CSDL & Băng thông', locked: !isSuperAdmin },
           ].map(tab => {
             const isLocked = Boolean(tab.locked);
             return (
@@ -1277,7 +1279,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                 key={tab.id}
                 onClick={() => {
                   if (isLocked) {
-                    showAlert("Quyền hạn", "Chức năng Quản lý Giáo viên đã được đóng băng. Chỉ có Tổng Quản Trị (SuperAdmin) mới có quyền truy cập.", "warning");
+                    showAlert("Quyền hạn", `Chức năng "${tab.label}" chỉ dành riêng cho Tổng Quản Trị (SuperAdmin).`, "warning");
                     return;
                   }
                   setActiveTab(tab.id as AdminTab);
@@ -1290,7 +1292,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                     ? 'bg-blue-600 text-white shadow-md'
                     : 'text-slate-400 hover:bg-white/5'
                 }`}
-                title={isLocked ? "Chức năng đóng băng đối với Giáo viên (Chỉ SuperAdmin)" : undefined}
+                title={isLocked ? "Chức năng chỉ dành cho SuperAdmin" : undefined}
               >
                 <div className="flex items-center gap-3">
                   <tab.icon size={18}/> 
@@ -1681,6 +1683,14 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                     />
                 )}
             </div>
+          )}
+
+          {activeTab === 'database' && (
+            <DatabaseMonitor
+              isSuperAdmin={isSuperAdmin}
+              onShowAlert={showAlert}
+              onShowConfirm={showConfirm}
+            />
           )}
         </div>
       </main>

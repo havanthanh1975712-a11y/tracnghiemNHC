@@ -23,6 +23,8 @@ import { User, Quiz, Result, Chapter, Question, ExamSession, PublishedResult, Gr
 import { v4 as uuidv4 } from 'uuid';
 import { isSameSubject } from './subjectUtils';
 
+import firebaseConfig from '../firebase-applet-config.json';
+
 export const isDatabaseConnected = (): boolean => {
   return !!db;
 };
@@ -1475,4 +1477,214 @@ export const initStorage = async () => {
 export const clearLocalCache = () => {
   localStorage.clear();
   window.location.reload();
+};
+
+export interface CollectionStat {
+  name: string;
+  label: string;
+  count: number;
+  estimatedSizeBytes: number;
+  description: string;
+}
+
+export interface DatabaseMetrics {
+  connected: boolean;
+  projectId: string;
+  databaseId: string;
+  storageBucket: string;
+  authDomain: string;
+  latencyMs: number;
+  status: 'optimal' | 'warning' | 'error' | 'disconnected';
+  collections: CollectionStat[];
+  totalDocuments: number;
+  totalEstimatedSizeBytes: number;
+  localCacheSizeBytes: number;
+  quotas: {
+    readsDailyLimit: number;
+    writesDailyLimit: number;
+    deletesDailyLimit: number;
+    storageLimitBytes: number;
+    bandwidthMonthlyLimitBytes: number;
+    estimatedStorageUsedPercent: number;
+  };
+  lastChecked: string;
+}
+
+export const pingDatabase = async (): Promise<number> => {
+  if (!db) return -1;
+  const start = performance.now();
+  try {
+    const q = query(collection(db, 'users'), limit(1));
+    await getDocs(q);
+    const duration = Math.round(performance.now() - start);
+    return duration;
+  } catch (e) {
+    return -1;
+  }
+};
+
+export const getDatabaseMetrics = async (): Promise<DatabaseMetrics> => {
+  const isConn = isDatabaseConnected();
+  const projectId = firebaseConfig?.projectId || 'N/A';
+  const databaseId = firebaseConfig?.firestoreDatabaseId || '(default)';
+  const storageBucket = firebaseConfig?.storageBucket || 'N/A';
+  const authDomain = firebaseConfig?.authDomain || 'N/A';
+
+  // Calculate local storage size
+  let localCacheBytes = 0;
+  try {
+    for (let key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        localCacheBytes += (localStorage[key].length + key.length) * 2;
+      }
+    }
+  } catch {
+    localCacheBytes = 0;
+  }
+
+  if (!isConn || !db) {
+    return {
+      connected: false,
+      projectId,
+      databaseId,
+      storageBucket,
+      authDomain,
+      latencyMs: -1,
+      status: 'disconnected',
+      collections: [],
+      totalDocuments: 0,
+      totalEstimatedSizeBytes: 0,
+      localCacheSizeBytes: localCacheBytes,
+      quotas: {
+        readsDailyLimit: 50000,
+        writesDailyLimit: 20000,
+        deletesDailyLimit: 20000,
+        storageLimitBytes: 1073741824, // 1 GiB
+        bandwidthMonthlyLimitBytes: 10737418240, // 10 GiB
+        estimatedStorageUsedPercent: 0
+      },
+      lastChecked: new Date().toISOString()
+    };
+  }
+
+  const startPing = performance.now();
+  let latencyMs = 0;
+  let status: 'optimal' | 'warning' | 'error' = 'optimal';
+
+  // Average size estimation per document (in bytes) based on data model complexity
+  const collectionConfigs = [
+    { name: 'quizzes', label: 'Đề thi chi tiết', avgBytes: 18000, desc: 'Chứa đề thi, danh sách câu hỏi, hình ảnh và đáp án' },
+    { name: 'quizzes_metadata', label: 'Chỉ mục đề thi (Metadata)', avgBytes: 600, desc: 'Lưu thông tin tóm tắt đề phục vụ tải trang siêu tốc' },
+    { name: 'users', label: 'Tài khoản người dùng', avgBytes: 800, desc: 'Học sinh, giáo viên, quản trị viên' },
+    { name: 'results', label: 'Kết quả & Bài nộp', avgBytes: 4500, desc: 'Chi tiết bài thi của học sinh, đáp án chọn, thời gian làm' },
+    { name: 'classes', label: 'Lớp học', avgBytes: 1200, desc: 'Danh sách lớp và danh sách mã học sinh được gán' },
+    { name: 'chapters', label: 'Chương mục kiến thức', avgBytes: 400, desc: 'Phân loại bài học theo từng khối và môn' },
+    { name: 'bank_questions', label: 'Ngân hàng câu hỏi', avgBytes: 2200, desc: 'Kho câu hỏi mẫu phân theo môn học và mức độ' },
+    { name: 'exam_sessions', label: 'Phiên giám sát thi', avgBytes: 1000, desc: 'Trạng thái học sinh đang làm bài thi trực tiếp' },
+    { name: 'published_results', label: 'Kết quả công bố', avgBytes: 800, desc: 'Dữ liệu công bố điểm của các đề thi' }
+  ];
+
+  const collectionsStats: CollectionStat[] = [];
+  let totalDocs = 0;
+  let totalEstimatedBytes = 0;
+
+  try {
+    const counts = await Promise.allSettled(
+      collectionConfigs.map(async (c) => {
+        try {
+          const snapshot = await getCountFromServer(collection(db, c.name));
+          return snapshot.data().count;
+        } catch {
+          // Fallback if collection doesn't exist yet
+          return 0;
+        }
+      })
+    );
+
+    latencyMs = Math.round(performance.now() - startPing);
+    if (latencyMs > 800) status = 'warning';
+
+    collectionConfigs.forEach((c, idx) => {
+      const res = counts[idx];
+      const count = res.status === 'fulfilled' ? res.value : 0;
+      const estimatedSize = count * c.avgBytes;
+      totalDocs += count;
+      totalEstimatedBytes += estimatedSize;
+
+      collectionsStats.push({
+        name: c.name,
+        label: c.label,
+        count,
+        estimatedSizeBytes: estimatedSize,
+        description: c.desc
+      });
+    });
+  } catch (err) {
+    status = 'error';
+  }
+
+  const storageLimitBytes = 1073741824; // 1 GiB free tier
+  const usedPercent = Math.min(100, Number(((totalEstimatedBytes / storageLimitBytes) * 100).toFixed(2)));
+
+  return {
+    connected: true,
+    projectId,
+    databaseId,
+    storageBucket,
+    authDomain,
+    latencyMs,
+    status,
+    collections: collectionsStats,
+    totalDocuments: totalDocs,
+    totalEstimatedSizeBytes: totalEstimatedBytes,
+    localCacheSizeBytes: localCacheBytes,
+    quotas: {
+      readsDailyLimit: 50000,
+      writesDailyLimit: 20000,
+      deletesDailyLimit: 20000,
+      storageLimitBytes,
+      bandwidthMonthlyLimitBytes: 10737418240, // 10 GiB
+      estimatedStorageUsedPercent: usedPercent
+    },
+    lastChecked: new Date().toISOString()
+  };
+};
+
+export const exportFullDatabaseBackup = async (): Promise<string> => {
+  if (!db) throw new Error("Mất kết nối Database Cloud Firestore");
+
+  const [quizzesSnap, usersSnap, resultsSnap, classesSnap, chaptersSnap, bankSnap] = await Promise.all([
+    getDocs(collection(db, 'quizzes')),
+    getDocs(collection(db, 'users')),
+    getDocs(collection(db, 'results')),
+    getDocs(collection(db, 'classes')),
+    getDocs(collection(db, 'chapters')),
+    getDocs(collection(db, 'bank_questions'))
+  ]);
+
+  const backupData = {
+    version: "1.0",
+    appName: "EduQuiz VN",
+    exportedAt: new Date().toISOString(),
+    projectId: firebaseConfig?.projectId,
+    databaseId: firebaseConfig?.firestoreDatabaseId,
+    stats: {
+      quizzes: quizzesSnap.size,
+      users: usersSnap.size,
+      results: resultsSnap.size,
+      classes: classesSnap.size,
+      chapters: chaptersSnap.size,
+      bankQuestions: bankSnap.size
+    },
+    data: {
+      quizzes: quizzesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      users: usersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      results: resultsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      classes: classesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      chapters: chaptersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      bankQuestions: bankSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    }
+  };
+
+  return JSON.stringify(backupData, null, 2);
 };
