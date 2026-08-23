@@ -1,16 +1,18 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Quiz, Question, Grade, QuestionType, Chapter, QuizType, ClassRoom } from '../../types';
 import { 
   Save, FileUp, Database, CheckCircle2, HelpCircle, AlignLeft, Trash2, 
   Target as TargetIcon, Plus, ImageIcon, Loader2, Lightbulb, Eye, ImageMinus, 
   ShieldAlert, ShieldCheck, Sparkles, Zap, Type as TypeIcon, X, Link as LinkIcon, 
   EyeOff, FileCode, GraduationCap, CheckSquare, Square, Users, Copy, Images, Check, Layers, ArrowRight,
-  Key
+  Key, BookOpen
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import LatexText from '../LatexText';
+import LatexEditorModal from './LatexEditorModal';
 import { parseQuestionsFromJSON } from '../../services/gemini';
+import { STANDARD_SUBJECTS, isSameSubject } from '../../services/subjectUtils';
 
 interface QuizEditorProps {
     editingId: string | null;
@@ -18,6 +20,8 @@ interface QuizEditorProps {
     setTitle: (val: string) => void;
     grade: Grade;
     setGrade: (val: Grade) => void;
+    subject?: string;
+    setSubject?: (val: string) => void;
     quizType: QuizType;
     setQuizType: (val: QuizType) => void;
     isPublished: boolean;
@@ -84,6 +88,83 @@ const QuestionSection: React.FC<QuestionSectionProps> = ({ sectionTitle, type, q
     const [batchImageSrc, setBatchImageSrc] = useState<string | null>(null);
     const [batchSelectedQIds, setBatchSelectedQIds] = useState<string[]>([]);
     const [batchFilterType, setBatchFilterType] = useState<QuestionType | 'all'>('all');
+
+    // Quản lý Modal soạn thảo công thức LaTeX
+    const [latexModalConfig, setLatexModalConfig] = useState<{
+        isOpen: boolean;
+        questionId: string;
+        field: 'text' | 'solution';
+        questionNumber: number;
+        initialCode: string;
+        cursorStart: number;
+        cursorEnd: number;
+    }>({
+        isOpen: false,
+        questionId: '',
+        field: 'text',
+        questionNumber: 1,
+        initialCode: '$\\dfrac{a}{b}$',
+        cursorStart: 0,
+        cursorEnd: 0
+    });
+
+    const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+
+    const handleOpenLatexModal = (qId: string, field: 'text' | 'solution', qNum: number) => {
+        const key = `${qId}-${field}`;
+        const textarea = textareaRefs.current[key];
+        let start = 0;
+        let end = 0;
+        let selectedText = '';
+        if (textarea) {
+            start = textarea.selectionStart || 0;
+            end = textarea.selectionEnd || 0;
+            selectedText = textarea.value.substring(start, end);
+        }
+        const initialCode = selectedText.trim() 
+            ? (selectedText.includes('$') ? selectedText : `$${selectedText}$`)
+            : '$\\dfrac{a}{b}$';
+        
+        setLatexModalConfig({
+            isOpen: true,
+            questionId: qId,
+            field,
+            questionNumber: qNum,
+            initialCode,
+            cursorStart: start,
+            cursorEnd: end
+        });
+    };
+
+    const handleInsertLatex = (code: string) => {
+        const { questionId, field, cursorStart, cursorEnd } = latexModalConfig;
+        const qIndex = questions.findIndex(q => q.id === questionId);
+        if (qIndex === -1) return;
+        
+        const nl = [...questions];
+        const q = { ...nl[qIndex] };
+        const currentVal = (field === 'text' ? q.text : q.solution) || '';
+        const newVal = currentVal.substring(0, cursorStart) + code + currentVal.substring(cursorEnd);
+        
+        if (field === 'text') {
+            q.text = newVal;
+        } else {
+            q.solution = newVal;
+        }
+        nl[qIndex] = q;
+        setQuestions(nl);
+
+        // Đặt lại tiêu điểm và vị trí con trỏ sau khi chèn
+        setTimeout(() => {
+            const key = `${questionId}-${field}`;
+            const textarea = textareaRefs.current[key];
+            if (textarea) {
+                textarea.focus();
+                const newPos = cursorStart + code.length;
+                textarea.setSelectionRange(newPos, newPos);
+            }
+        }, 50);
+    };
 
     const sectionQuestions = questions.filter(q => q.type === type);
     const Icon = type === 'mcq' ? CheckCircle2 : type === 'group-tf' ? HelpCircle : AlignLeft;
@@ -520,11 +601,27 @@ const QuestionSection: React.FC<QuestionSectionProps> = ({ sectionTitle, type, q
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Nội dung đề (LaTeX: $...$)</label>
-                            <textarea className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-sm font-bold outline-none min-h-[120px] focus:border-blue-300 transition-colors" value={q.text} onChange={e => { const nl = [...questions]; const i = nl.findIndex(x => x.id === q.id); nl[i].text = e.target.value; setQuestions(nl); }} placeholder="VD: Tìm $x$ biết $x^2 = 4$..." />
+                            <div className="flex items-center justify-between ml-2 mr-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase">NỘI DUNG ĐỀ (LATEX: $...$)</label>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenLatexModal(q.id, 'text', globalIndex + 1)}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-sm border border-blue-200 active:scale-95"
+                                    title="Mở bảng hỗ trợ soạn thảo công thức LaTeX trực quan"
+                                >
+                                    <Sparkles size={13} className="text-amber-500 animate-pulse"/> HỖ TRỢ LATEX
+                                </button>
+                            </div>
+                            <textarea 
+                                ref={el => { textareaRefs.current[`${q.id}-text`] = el; }}
+                                className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-sm font-bold outline-none min-h-[120px] focus:border-blue-300 transition-colors" 
+                                value={q.text} 
+                                onChange={e => { const nl = [...questions]; const i = nl.findIndex(x => x.id === q.id); nl[i].text = e.target.value; setQuestions(nl); }} 
+                                placeholder="VD: Tìm $x$ biết $x^2 = 4$..." 
+                            />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-blue-500 uppercase ml-2">Xem trước hiển thị</label>
+                            <label className="text-[10px] font-black text-blue-500 uppercase ml-2">XEM TRƯỚC HIỂN THỊ</label>
                             <div className="w-full p-6 bg-blue-50/20 rounded-[2rem] border-2 border-blue-100/50 min-h-[120px] text-sm overflow-auto"><LatexText text={q.text || '*Đề trống*'} /></div>
                         </div>
                     </div>
@@ -672,11 +769,27 @@ const QuestionSection: React.FC<QuestionSectionProps> = ({ sectionTitle, type, q
 
                     <div className="pt-8 border-t-2 border-slate-100 grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div className="space-y-3">
-                            <div className="flex items-center gap-2 ml-2">
-                                <Lightbulb size={16} className="text-orange-500"/>
-                                <label className="text-[10px] font-black text-slate-400 uppercase">Hướng dẫn giải (LaTeX: $...$)</label>
+                            <div className="flex items-center justify-between ml-2 mr-2">
+                                <div className="flex items-center gap-2">
+                                    <Lightbulb size={16} className="text-orange-500"/>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase">Hướng dẫn giải (LaTeX: $...$)</label>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenLatexModal(q.id, 'solution', globalIndex + 1)}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-sm border border-orange-200 active:scale-95"
+                                    title="Mở bảng hỗ trợ soạn thảo công thức LaTeX cho lời giải"
+                                >
+                                    <Sparkles size={12}/> Hỗ trợ LaTeX
+                                </button>
                             </div>
-                            <textarea className="w-full p-5 bg-orange-50/20 border-2 border-orange-100 rounded-[2rem] text-sm font-medium outline-none min-h-[100px] focus:border-orange-300" value={q.solution} onChange={e => { const nl = [...questions]; const i = nl.findIndex(x => x.id === q.id); nl[i].solution = e.target.value; setQuestions(nl); }} placeholder="Viết lời giải chi tiết tại đây để hỗ trợ học sinh..." />
+                            <textarea 
+                                ref={el => { textareaRefs.current[`${q.id}-solution`] = el; }}
+                                className="w-full p-5 bg-orange-50/20 border-2 border-orange-100 rounded-[2rem] text-sm font-medium outline-none min-h-[100px] focus:border-orange-300" 
+                                value={q.solution} 
+                                onChange={e => { const nl = [...questions]; const i = nl.findIndex(x => x.id === q.id); nl[i].solution = e.target.value; setQuestions(nl); }} 
+                                placeholder="Viết lời giải chi tiết tại đây để hỗ trợ học sinh..." 
+                            />
                         </div>
                         <div className="space-y-3">
                             <div className="flex items-center gap-2 ml-2">
@@ -689,6 +802,15 @@ const QuestionSection: React.FC<QuestionSectionProps> = ({ sectionTitle, type, q
                 </div>
                 );
             })}
+
+            {/* Modal Soạn thảo Công thức LaTeX Trực quan */}
+            <LatexEditorModal
+                isOpen={latexModalConfig.isOpen}
+                onClose={() => setLatexModalConfig(prev => ({ ...prev, isOpen: false }))}
+                onInsert={handleInsertLatex}
+                questionIndex={latexModalConfig.questionNumber}
+                initialCode={latexModalConfig.initialCode}
+            />
         </div>
     );
 };
@@ -698,7 +820,13 @@ export default function QuizEditor(props: QuizEditorProps) {
     const [pastedText, setPastedText] = useState('');
 
     const totalPoints = props.questions.reduce((acc, q) => acc + safeParseScore(q.points), 0);
-    const relevantChapters = props.chapters.filter(c => String(c.grade) === String(props.grade));
+    const relevantChapters = useMemo(() => {
+        return props.chapters.filter(c => {
+            if (String(c.grade) !== String(props.grade)) return false;
+            if (props.subject && c.subject && !isSameSubject(c.subject, props.subject)) return false;
+            return true;
+        });
+    }, [props.chapters, props.grade, props.subject]);
     const [showKeyInput, setShowKeyInput] = useState(false);
 
     const handleConfirmTextExtract = () => {
@@ -951,7 +1079,35 @@ export default function QuizEditor(props: QuizEditorProps) {
                     </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2 flex items-center gap-1.5">
+                            <BookOpen size={12} className="text-blue-500"/> Môn học
+                        </label>
+                        {props.isSuperAdmin ? (
+                            <select 
+                                className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black uppercase bg-slate-50 focus:border-blue-300 outline-none cursor-pointer" 
+                                value={props.subject || 'Toán'} 
+                                onChange={e => { 
+                                    if (props.setSubject) props.setSubject(e.target.value); 
+                                    props.setCategory(''); 
+                                }}
+                            >
+                                {STANDARD_SUBJECTS.map(subj => (
+                                    <option key={subj} value={subj}>{subj.toUpperCase()}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <div className="w-full border-2 border-blue-100 bg-blue-50/60 rounded-[1.5rem] p-4 flex items-center justify-between">
+                                <span className="text-xs font-black uppercase text-blue-700 tracking-wider">
+                                    {props.subject || 'TOÁN'}
+                                </span>
+                                <span className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                    MÔN DẠY
+                                </span>
+                            </div>
+                        )}
+                    </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Khối lớp</label>
                         <select className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black bg-slate-50 focus:border-blue-300 outline-none" value={props.grade} onChange={e => { props.setGrade(e.target.value as Grade); props.setCategory(''); }}>
@@ -979,7 +1135,7 @@ export default function QuizEditor(props: QuizEditorProps) {
                         </select>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Thứ tự luyện (0: Tự do, 1-N: Trình tự)</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Thứ tự luyện</label>
                         <input 
                             type="number" 
                             min="0"
