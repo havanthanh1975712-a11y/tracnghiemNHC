@@ -60,7 +60,7 @@ export default function StudentManager({
 
     const getTeacherInfoForClass = (c: ClassRoom) => {
         const teacher = c.createdBy ? teacherMap.get(c.createdBy) : (c.teacherName ? teacherMap.get(c.teacherName) : null);
-        const tName = c.teacherName || teacher?.fullName;
+        const tName = teacher?.fullName || c.teacherName;
         const tSub = c.subject || teacher?.subject;
         if (tName && tSub) return `GV: ${tName} (${tSub})`;
         if (tName) return `GV: ${tName}`;

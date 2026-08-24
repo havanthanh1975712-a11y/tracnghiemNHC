@@ -1463,8 +1463,11 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
               currentUser={currentUser}
               onSaveTeacher={async (t) => {
                 await saveTeacher(t);
-                showAlert("Thành công", `Đã lưu tài khoản giáo viên ${t.fullName}!`, "success");
-                await loadTabData('teachers');
+                showAlert("Thành công", `Đã lưu tài khoản giáo viên ${t.fullName}! Tên giáo viên trên các lớp học và đề thi liên quan đã được đồng bộ tự động.`, "success");
+                await Promise.all([
+                  loadTabData('teachers'),
+                  loadTabData('classes')
+                ]);
               }}
               onDeleteTeacher={async (id, name) => {
                 showConfirm(

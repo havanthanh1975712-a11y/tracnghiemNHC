@@ -421,7 +421,52 @@ export const getTeachers = async (): Promise<User[]> => {
 };
 
 export const saveTeacher = async (teacher: User): Promise<void> => {
-  return saveUser(teacher);
+  await saveUser(teacher);
+
+  // Tự động đồng bộ tên giáo viên mới vào tất cả Lớp học và Đề thi do GV này phụ trách
+  if (db && teacher.id && teacher.fullName) {
+    try {
+      // 1. Cập nhật các Lớp học do GV tạo (createdBy == teacher.id)
+      const classesQuery = query(collection(db, 'classes'), where('createdBy', '==', teacher.id));
+      const classesSnap = await getDocs(classesQuery);
+      if (!classesSnap.empty) {
+        const batch = writeBatch(db);
+        classesSnap.forEach(classDoc => {
+          batch.update(classDoc.ref, {
+            teacherName: teacher.fullName,
+            'data.teacherName': teacher.fullName
+          });
+        });
+        await batch.commit();
+      }
+
+      // 2. Cập nhật các Đề thi do GV tạo (createdBy == teacher.id)
+      const quizMetaQuery = query(collection(db, 'quizzes_metadata'), where('createdBy', '==', teacher.id));
+      const quizMetaSnap = await getDocs(quizMetaQuery);
+      if (!quizMetaSnap.empty) {
+        const batch = writeBatch(db);
+        quizMetaSnap.forEach(qDoc => {
+          batch.update(qDoc.ref, {
+            createdByName: teacher.fullName,
+            'data.createdByName': teacher.fullName
+          });
+        });
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn("Lỗi đồng bộ tên giáo viên sang các lớp/đề thi:", err);
+    }
+  }
+
+  // Cập nhật local storage cache của lớp học nếu có
+  try {
+    const local = localStorage.getItem('eduquiz_classes_cache');
+    if (local) {
+      const parsedClasses: ClassRoom[] = JSON.parse(local);
+      const updated = parsedClasses.map(c => c.createdBy === teacher.id ? { ...c, teacherName: teacher.fullName } : c);
+      localStorage.setItem('eduquiz_classes_cache', JSON.stringify(updated));
+    }
+  } catch (e) {}
 };
 
 export const deleteTeacher = async (id: string): Promise<void> => {

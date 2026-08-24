@@ -825,9 +825,9 @@ export default function ClassManager({
                               Dùng chung
                             </span>
                           )}
-                          {(c.teacherName || creatorTeacher?.fullName) && (isSuperAdmin || c.createdBy !== currentUser?.id) && (
-                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 font-bold rounded-md text-[8px] border border-amber-200 truncate max-w-[120px]" title={`GV: ${c.teacherName || creatorTeacher?.fullName}`}>
-                              GV: {c.teacherName || creatorTeacher?.fullName}
+                          {(creatorTeacher?.fullName || c.teacherName) && (isSuperAdmin || c.createdBy !== currentUser?.id) && (
+                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 font-bold rounded-md text-[8px] border border-amber-200 truncate max-w-[120px]" title={`GV: ${creatorTeacher?.fullName || c.teacherName}`}>
+                              GV: {creatorTeacher?.fullName || c.teacherName}
                             </span>
                           )}
                         </div>
