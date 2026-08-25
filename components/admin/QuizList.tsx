@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Quiz, Result, Grade, Chapter, ClassRoom, User } from '../../types';
 import { 
   Edit, Trash2, Eye, Users, Filter, FileText, ChevronDown, Link as LinkIcon, 
-  EyeOff, ShieldCheck, GraduationCap, Share2, User as UserIcon, Lock, BookOpen
+  EyeOff, ShieldCheck, GraduationCap, Share2, User as UserIcon, Lock, BookOpen,
+  Check, X, CheckSquare, Square, Info, Sparkles, Send, Layers, AlertCircle
 } from 'lucide-react';
 import { isSameSubject, STANDARD_SUBJECTS } from '../../services/subjectUtils';
 
@@ -17,6 +18,7 @@ interface QuizListProps {
     onEdit: (quiz: Quiz) => void;
     onDelete: (id: string) => void;
     onPreview: (quiz: Quiz) => void;
+    onAssignClasses?: (quiz: Quiz, selectedClassIds: string[]) => Promise<void>;
     qSearch: string;
     setQSearch: (val: string) => void;
     qGradeFilter: Grade | 'all';
@@ -74,7 +76,7 @@ export const getQuizStatus = (q: Quiz) => {
 
 export default function QuizList({ 
     quizzes, results, chapters, classes = [], currentUser, teachers = [],
-    onEdit, onDelete, onPreview, 
+    onEdit, onDelete, onPreview, onAssignClasses,
     qSearch, setQSearch, qGradeFilter, setQGradeFilter,
     qChapterFilter, setQChapterFilter,
     qSubjectFilter: propSubjectFilter,
@@ -242,6 +244,53 @@ export default function QuizList({
     const visibleQuizzes = filtered.slice(0, visibleCount);
 
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [assigningQuiz, setAssigningQuiz] = useState<Quiz | null>(null);
+    const [selectedClassIdsForAssign, setSelectedClassIdsForAssign] = useState<string[]>([]);
+    const [isSavingAssign, setIsSavingAssign] = useState<boolean>(false);
+    const [assignGradeFilter, setAssignGradeFilter] = useState<'matching' | 'all'>('matching');
+    const [assignSearchClass, setAssignSearchClass] = useState<string>('');
+
+    const openAssignModal = (q: Quiz) => {
+        setAssigningQuiz(q);
+        setSelectedClassIdsForAssign(q.assignedClassIds || []);
+        setAssignGradeFilter('matching');
+        setAssignSearchClass('');
+    };
+
+    const handleSaveAssignment = async () => {
+        if (!assigningQuiz) return;
+        setIsSavingAssign(true);
+        try {
+            if (onAssignClasses) {
+                await onAssignClasses(assigningQuiz, selectedClassIdsForAssign);
+            }
+            setAssigningQuiz(null);
+        } catch (err) {
+            console.error("Lỗi giao đề:", err);
+        } finally {
+            setIsSavingAssign(false);
+        }
+    };
+
+    // Lọc danh sách lớp có thể phân công
+    const classesForAssignment = useMemo(() => {
+        if (!assigningQuiz) return [];
+        let list = classes || [];
+        // Nếu là GV thường: ưu tiên lớp do GV tạo hoặc lớp được chia sẻ
+        if (!isSuperAdmin) {
+            list = list.filter(c => (c.createdBy && c.createdBy === currentUser?.id) || c.isSharedWithTeachers);
+        }
+        // Lọc theo khối tương ứng nếu đang chọn 'matching'
+        if (assignGradeFilter === 'matching' && assigningQuiz.grade !== 'all') {
+            list = list.filter(c => String(c.grade) === String(assigningQuiz.grade) || c.grade === 'all');
+        }
+        // Tìm kiếm lớp
+        if (assignSearchClass.trim()) {
+            const query = assignSearchClass.trim().toLowerCase();
+            list = list.filter(c => c.name.toLowerCase().includes(query) || (c.academicYear && c.academicYear.toLowerCase().includes(query)));
+        }
+        return list;
+    }, [classes, assigningQuiz, isSuperAdmin, currentUser?.id, assignGradeFilter, assignSearchClass]);
 
     const copyQuizLink = (quizId: string) => {
         const url = `${window.location.origin}/?quiz=${quizId}`;
@@ -586,14 +635,24 @@ export default function QuizList({
                                 </div>
                             </div>
 
-                            <div className="mt-auto flex gap-2">
+                            <div className="mt-auto flex gap-2 pt-2">
                                 <button 
                                     onClick={() => onPreview(q)} 
-                                    className={`w-full py-3 rounded-xl text-[9px] font-extrabold uppercase flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 ${q.isPublished 
-                                        ? (q.isUnlisted ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-blue-600 text-white hover:bg-blue-700') 
-                                        : 'bg-slate-800 text-white hover:bg-black'}`}
+                                    className="flex-1 py-2.5 px-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-1.5 transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 shadow-sm active:scale-95"
+                                    title="Xem chi tiết & Xuất file Word (.doc) / JSON (.json)"
                                 >
-                                    <Eye size={14}/> Xem & Xuất Word
+                                    <Eye size={13}/> Xem & In
+                                </button>
+                                <button 
+                                    onClick={() => openAssignModal(q)} 
+                                    className={`flex-1 py-2.5 px-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 text-white ${
+                                        !isMine 
+                                            ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' 
+                                            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+                                    }`}
+                                    title={!isMine ? "Giao đề chia sẻ này cho lớp bạn phụ trách" : "Giao đề cho các lớp học"}
+                                >
+                                    <GraduationCap size={14}/> Giao Lớp
                                 </button>
                             </div>
                         </div>
@@ -614,6 +673,225 @@ export default function QuizList({
             
             {filtered.length === 0 && (
                 <div className="py-20 text-center text-slate-300 font-black uppercase text-[10px] italic tracking-widest">Không tìm thấy đề thi nào</div>
+            )}
+
+            {/* Modal Giao đề cho Lớp học */}
+            {assigningQuiz && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[5000] flex items-center justify-center p-3 md:p-6 animate-fade-in">
+                    <div className="bg-white rounded-[2.5rem] max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border-4 border-white animate-scale-up">
+                        
+                        {/* Header Modal */}
+                        <div className="p-6 bg-slate-900 text-white flex justify-between items-center gap-4 shrink-0 border-b border-slate-800">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-3 rounded-2xl ${
+                                    (!assigningQuiz.createdBy || assigningQuiz.createdBy === currentUser?.id)
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-emerald-600 text-white'
+                                } shadow-lg`}>
+                                    <GraduationCap size={24}/>
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight leading-tight">
+                                        GIAO ĐỀ CHO LỚP HỌC
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                                        Khối {assigningQuiz.grade} {assigningQuiz.subject ? `• Môn ${assigningQuiz.subject}` : ''}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setAssigningQuiz(null)}
+                                className="p-2.5 bg-slate-800 hover:bg-red-600 rounded-xl text-slate-400 hover:text-white transition-colors"
+                            >
+                                <X size={20}/>
+                            </button>
+                        </div>
+
+                        {/* Body Modal */}
+                        <div className="p-6 overflow-y-auto space-y-5 custom-scrollbar">
+                            
+                            {/* Quiz info banner */}
+                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <span className="text-xs font-black uppercase text-slate-800 line-clamp-1">
+                                        {assigningQuiz.title}
+                                    </span>
+                                    <span className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[9px] font-black uppercase text-slate-600 shadow-sm">
+                                        {assigningQuiz.questionCount || (assigningQuiz.questions ? assigningQuiz.questions.length : 0)} CÂU
+                                    </span>
+                                </div>
+
+                                {assigningQuiz.createdByName && (
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
+                                        <UserIcon size={12} className="text-slate-400"/>
+                                        <span>Tác giả: <strong className="text-slate-700">{assigningQuiz.createdByName}</strong></span>
+                                        {assigningQuiz.isSharedWithTeachers && (
+                                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[8px] font-black uppercase">
+                                                Chia sẻ cùng môn
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
+                                {(!isSuperAdmin && assigningQuiz.createdBy && assigningQuiz.createdBy !== currentUser?.id) && (
+                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-[11px] text-emerald-800 font-bold mt-2">
+                                        <Info size={16} className="text-emerald-600 shrink-0 mt-0.5"/>
+                                        <p className="leading-relaxed">
+                                            Đây là đề thi được chia sẻ bởi đồng nghiệp. Thầy/cô có thể chọn các lớp mình phụ trách bên dưới để giao bài cho học sinh. Thầy/cô không có quyền sửa hoặc xoá nội dung đề gốc.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Filters & Tools */}
+                            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAssignGradeFilter('matching')}
+                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
+                                            assignGradeFilter === 'matching'
+                                                ? 'bg-slate-900 text-white shadow-sm'
+                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        Lớp Khối {assigningQuiz.grade}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAssignGradeFilter('all')}
+                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
+                                            assignGradeFilter === 'all'
+                                                ? 'bg-slate-900 text-white shadow-sm'
+                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        Tất cả lớp
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const allIds = classesForAssignment.map(c => c.id);
+                                            const combined = Array.from(new Set([...selectedClassIdsForAssign, ...allIds]));
+                                            setSelectedClassIdsForAssign(combined);
+                                        }}
+                                        className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded-lg transition-colors"
+                                    >
+                                        Chọn tất cả
+                                    </button>
+                                    <span className="text-slate-300">|</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const currentIds = classesForAssignment.map(c => c.id);
+                                            setSelectedClassIdsForAssign(selectedClassIdsForAssign.filter(id => !currentIds.includes(id)));
+                                        }}
+                                        className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 px-2 py-1 hover:bg-slate-100 rounded-lg transition-colors"
+                                    >
+                                        Bỏ chọn
+                                    </button>
+                                    <span className="px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-[10px] font-black uppercase">
+                                        Đã chọn: {selectedClassIdsForAssign.length}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Search box for classes */}
+                            <input
+                                type="text"
+                                placeholder="Tìm kiếm tên lớp học, niên khóa..."
+                                value={assignSearchClass}
+                                onChange={(e) => setAssignSearchClass(e.target.value)}
+                                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 focus:bg-white transition-all text-slate-800"
+                            />
+
+                            {/* Classes Grid */}
+                            {classesForAssignment.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {classesForAssignment.map(c => {
+                                        const isSelected = selectedClassIdsForAssign.includes(c.id);
+                                        const isMyClass = c.createdBy === currentUser?.id;
+                                        return (
+                                            <div
+                                                key={c.id}
+                                                onClick={() => {
+                                                    if (isSelected) {
+                                                        setSelectedClassIdsForAssign(selectedClassIdsForAssign.filter(id => id !== c.id));
+                                                    } else {
+                                                        setSelectedClassIdsForAssign([...selectedClassIdsForAssign, c.id]);
+                                                    }
+                                                }}
+                                                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                                    isSelected
+                                                        ? 'bg-blue-50/70 border-blue-500 shadow-sm'
+                                                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className={`p-2 rounded-xl shrink-0 ${
+                                                        isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'
+                                                    }`}>
+                                                        {isSelected ? <Check size={16}/> : <Square size={16}/>}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="font-black text-sm text-slate-800 uppercase tracking-tight">
+                                                                {c.name}
+                                                            </span>
+                                                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[8px] font-black uppercase">
+                                                                Khối {c.grade}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">
+                                                            NK: {c.academicYear || 'Chung'} {c.teacherName ? `• GV: ${c.teacherName}` : (isMyClass ? '• Lớp của bạn' : '')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="py-12 text-center text-slate-400 font-bold text-xs space-y-2">
+                                    <p>Không tìm thấy lớp học nào phù hợp.</p>
+                                    <p className="text-[10px] text-slate-400">Thầy/cô có thể tạo thêm lớp trong mục "Quản lý Lớp học".</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer Modal */}
+                        <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setAssigningQuiz(null)}
+                                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase transition-all"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSavingAssign}
+                                onClick={handleSaveAssignment}
+                                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isSavingAssign ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                                        <span>Đang lưu...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check size={16}/>
+                                        <span>Lưu Phân Công Giao Đề</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

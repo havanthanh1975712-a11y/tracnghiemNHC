@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, FileType, AlignLeft, Rows } from 'lucide-react';
+import { X, Download, FileType, AlignLeft, Rows, FileCode } from 'lucide-react';
 import { Quiz, Question } from '../../types';
 import LatexText from '../LatexText';
 import { normalizeFullText, repairVietnameseText } from '../../services/vietnameseFixer';
@@ -390,6 +390,24 @@ export default function QuizPreviewModal({ quiz, onClose, isAdmin = true }: Quiz
         URL.revokeObjectURL(url);
     };
 
+    const handleExportJSON = () => {
+        try {
+            const jsonStr = JSON.stringify(quiz, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${quiz.title.replace(/[/\\?%*:|"<>]/g, '_')}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Lỗi khi xuất file JSON:", e);
+            alert("Có lỗi khi xuất file JSON.");
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-slate-900/95 z-[2000] flex items-center justify-center p-0 md:p-4 backdrop-blur-xl animate-fade-in">
             <div className="bg-white rounded-[0] md:rounded-[3.5rem] w-full max-w-5xl h-full md:h-[95vh] flex flex-col overflow-hidden shadow-2xl">
@@ -435,13 +453,22 @@ export default function QuizPreviewModal({ quiz, onClose, isAdmin = true }: Quiz
                         </div>
 
                         {isAdmin && (
-                            <button 
-                                onClick={handleExportWord}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase hover:bg-emerald-700 transition-all shadow-xl active:scale-95"
-                                title="Xuất file Microsoft Word chuẩn định dạng (.doc)"
-                            >
-                                <Download size={15}/> Xuất Word (.doc)
-                            </button>
+                            <>
+                                <button 
+                                    onClick={handleExportJSON}
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 text-white rounded-xl text-[11px] font-black uppercase hover:bg-amber-700 transition-all shadow-xl active:scale-95"
+                                    title="Tải cấu trúc đề thi dưới định dạng JSON (.json)"
+                                >
+                                    <FileCode size={15}/> Xuất JSON (.json)
+                                </button>
+                                <button 
+                                    onClick={handleExportWord}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase hover:bg-emerald-700 transition-all shadow-xl active:scale-95"
+                                    title="Xuất file Microsoft Word chuẩn định dạng (.doc)"
+                                >
+                                    <Download size={15}/> Xuất Word (.doc)
+                                </button>
+                            </>
                         )}
                         <button 
                             onClick={onClose} 

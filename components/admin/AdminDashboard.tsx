@@ -11,7 +11,8 @@ import {
   isDatabaseConnected,
   syncAllQuizzesMetadata,
   syncQuizzesToBank,
-  deduplicateBankQuestions
+  deduplicateBankQuestions,
+  assignQuizToClasses
 } from '../../services/storage';
 import { generateQuizFromPrompt, parseQuestionsFromPDF, parseQuestionsFromText } from '../../services/gemini';
 import { normalizeFullText } from '../../services/vietnameseFixer';
@@ -579,6 +580,25 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
     try {
         const fullQuiz = await getQuizById(quiz.id);
         if (fullQuiz) setPreviewQuiz(fullQuiz);
+    } finally {
+        setIsDataLoading(false);
+    }
+  };
+
+  const handleAssignClasses = async (quiz: Quiz, selectedClassIds: string[]) => {
+    setIsDataLoading(true);
+    try {
+        const myClassIds = isSuperAdmin ? undefined : accessibleClasses.map(c => c.id);
+        await assignQuizToClasses(quiz.id, selectedClassIds, myClassIds);
+        await loadTabData('quizzes');
+        showAlert(
+            "Giao đề thành công", 
+            `Đã cập nhật phân công đề thi "${quiz.title}" cho ${selectedClassIds.length} lớp học. Học sinh trong các lớp này có thể truy cập làm bài.`,
+            "success"
+        );
+    } catch (e: any) {
+        console.error("Lỗi phân công giao đề:", e);
+        showAlert("Lỗi giao đề", e.message || "Không thể lưu phân công đề thi cho lớp học.", "error");
     } finally {
         setIsDataLoading(false);
     }
@@ -1446,6 +1466,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                         quizzes={accessibleQuizzes} results={accessibleResults} chapters={accessibleChapters} classes={accessibleClasses}
                         currentUser={currentUser} teachers={teachers}
                         onEdit={handleEditQuiz} onDelete={handleDeleteQuiz} onPreview={handlePreviewQuiz}
+                        onAssignClasses={handleAssignClasses}
                         qSearch={qSearch} setQSearch={setQSearch} qGradeFilter={qGradeFilter} setQGradeFilter={setQGradeFilter}
                         qChapterFilter={qChapterFilter} setQChapterFilter={setQChapterFilter}
                         qSubjectFilter={qSubjectFilter} setQSubjectFilter={setQSubjectFilter}

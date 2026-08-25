@@ -739,6 +739,43 @@ export const updateQuiz = async (enrichedQuiz: Quiz): Promise<void> => {
   await setDoc(doc(db, 'quizzes', quiz.id), cleanUndefined(payload), { merge: true });
 };
 
+export const assignQuizToClasses = async (
+  quizId: string, 
+  assignedClassIds: string[], 
+  teacherManagedClassIds?: string[]
+): Promise<void> => {
+  if (!db) throw new Error("Mất kết nối Database Cloud Firestore");
+  const quizRef = doc(db, 'quizzes', quizId);
+  const docSnap = await getDoc(quizRef);
+  if (!docSnap.exists()) throw new Error("Không tìm thấy đề thi trên Cloud");
+  
+  const raw = docSnap.data();
+  const quiz = (raw.data as Quiz) || (raw as Quiz);
+  
+  let finalClassIds: string[] = [];
+  if (teacherManagedClassIds && teacherManagedClassIds.length > 0) {
+    // Giữ nguyên các lớp do các giáo viên khác đã giao trước đó
+    const otherTeacherClassIds = (quiz.assignedClassIds || []).filter(id => !teacherManagedClassIds.includes(id));
+    finalClassIds = Array.from(new Set([...otherTeacherClassIds, ...assignedClassIds]));
+  } else {
+    finalClassIds = assignedClassIds;
+  }
+  
+  const targetType = finalClassIds.length > 0 ? 'classes' : (quiz.targetType || 'classes');
+  
+  const updatedQuiz = {
+    ...quiz,
+    targetType,
+    assignedClassIds: finalClassIds
+  };
+  
+  await setDoc(quizRef, {
+    targetType,
+    assignedClassIds: finalClassIds,
+    data: cleanUndefined(updatedQuiz)
+  }, { merge: true });
+};
+
 export const deleteQuiz = async (id: string): Promise<void> => {
   if (db) {
     await deleteDoc(doc(db, 'quizzes', id));
