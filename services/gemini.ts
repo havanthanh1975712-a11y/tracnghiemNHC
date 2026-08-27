@@ -81,35 +81,43 @@ const EXTRACTION_INSTRUCTION = `Bạn là chuyên gia khảo thí và giáo viê
 
 NHIỆM VỤ:
 1. Trích xuất đầy đủ, trung thực và chính xác toàn bộ câu hỏi, phương án, mức độ nhận biết từ tài liệu được cung cấp (file PDF hoặc đoạn văn bản).
-2. GIẢI CHI TIẾT 100% TẤT CẢ CÁC CÂU HỎI (BẮT BUỘC): Bất kể trong tài liệu gốc có sẵn lời giải hay chỉ có đề và đáp án, AI BẮT BUỘC PHẢI TỰ ĐỘNG GIẢI CHI TIẾT TỪNG BƯỚC CHO TỪNG CÂU HỎI VÀ ĐIỀN ĐẦY ĐỦ VÀO TRƯỜNG 'solution'. TUYỆT ĐỐI KHÔNG ĐƯỢC ĐỂ TRỐNG TRƯỜNG 'solution' Ở BẤT KỲ CÂU HỎI NÀO.
+2. TẠO LỜI GIẢI GỌN GÀNG, SÚC TÍCH 100% CHO TẤT CẢ CÁC CÂU HỎI (BẮT BUỘC): Điền đầy đủ vào trường 'solution'. TUYỆT ĐỐI KHÔNG ĐƯỢC ĐỂ TRỐNG TRƯỜNG 'solution' Ở BẤT KỲ CÂU HỎI NÀO.
 
-QUY TẮC TRÍCH XUẤT VÀ LỜI GIẢI CHI TIẾT (CỰC KỲ QUAN TRỌNG):
-1. PHÂN TÍCH ĐÁP ÁN:
-   - Quét toàn bộ nội dung để tìm bảng đáp án (thường ở cuối trang hoặc đính kèm).
-   - Nếu tài liệu không có bảng đáp án, AI phải tự giải chính xác để xác định 'correctAnswer'.
+QUY TẮC VIẾT LỜI GIẢI ('solution') - NGẮN GỌN, VIẾT CÔNG THỨC RỒI BẰNG KẾT QUẢ, THEO GẠCH ĐẦU DÒNG (CỰC KỲ QUAN TRỌNG):
+- PHONG CÁCH: Trình bày đơn giản, súc tích bằng các gạch đầu dòng (- ...).
+- CÔNG THỨC & KẾT QUẢ: Viết công thức/định luật rồi ghi dấu bằng ra kết quả luôn (Dạng: [Công thức] = [Kết quả]). 
+  TUYỆT ĐỐI BỎ QUA quá trình điền/thay thế số chi tiết, vụn vặt vào giữa các phép tính để tránh làm rối lời giải.
+- KHÔNG viết văn rườm rà, giải thích lòng vòng lan man.
 
-2. NHẬN DIỆN MỨC ĐỘ (level: "B" | "H" | "VD" | "VDC"):
-   - Tự động nhận diện nhãn mức độ: [B], (B), [NB] -> "B" (Nhận biết); [H], (H), [TH] -> "H" (Thông hiểu); [VD], (VD) -> "VD" (Vận dụng); [VDC], (VDC) -> "VDC" (Vận dụng cao).
-   - Áp dụng cho cả câu hỏi chính và từng ý con a, b, c, d của câu Đúng/Sai (Group-TF).
-
-3. MCQ (Trắc nghiệm 4 lựa chọn):
+1. MCQ (Trắc nghiệm 4 lựa chọn):
    - 'correctAnswer': BẮT BUỘC là nội dung chính xác của phương án đúng (không kèm nhãn A, B, C, D).
-   - 'solution' (LỜI GIẢI BẮT BUỘC): Trình bày chi tiết từng bước tính toán, suy luận, áp dụng định luật/công thức để chứng minh phương án đúng và giải thích ngắn gọn vì sao các phương án khác sai.
+   - 'solution': Trình bày bằng gạch đầu dòng:
+     - Áp dụng công thức: [Công thức] = [Kết quả].
+     - Chọn đáp án: [Nội dung phương án đúng].
 
-4. GROUP-TF (Trắc nghiệm Đúng/Sai):
+2. GROUP-TF (Trắc nghiệm Đúng/Sai):
    - 'subQuestions': BẮT BUỘC có đủ 4 ý (a, b, c, d). Mỗi ý gồm 'text', 'correctAnswer' ("True" hoặc "False") và 'level' ("B"|"H"|"VD"|"VDC").
-   - 'solution' (LỜI GIẢI BẮT BUỘC CHO CẢ 4 Ý): BẮT BUỘC giải thích chi tiết, sư phạm và rõ ràng cho TẤT CẢ 4 Ý theo đúng cấu trúc:
-     a) Đúng. [Giải thích chi tiết phép tính/định lý...]
-     b) Sai. [Chỉ rõ điểm sai và tính toán kết quả đúng...]
-     c) Đúng. [Giải thích chi tiết...]
-     d) Sai. [Giải thích chi tiết...]
+   - 'solution': BẮT BUỘC trình bày theo 4 ý a, b, c, d dạng gạch đầu dòng ngắn gọn:
+     - a) Đúng. Vì [Công thức] = [Kết quả].
+     - b) Sai. Vì [Công thức] = [Kết quả đúng].
+     - c) Đúng. Vì [Lý do / Công thức ngắn gọn].
+     - d) Sai. Vì [Lý do / Công thức ngắn gọn].
 
-5. SHORT (Trả lời ngắn):
+3. SHORT (Trả lời ngắn):
    - 'type': BẮT BUỘC là "short".
    - 'correctAnswer': BẮT BUỘC là giá trị con số chính xác (VD: "12", "-3.5", "0.25").
-   - 'solution' (LỜI GIẢI BẮT BUỘC): Trình bày các bước lập luận, biến đổi toán/lý/hóa chi tiết dẫn đến kết quả con số cuối cùng.
+   - 'solution': Dùng các gạch đầu dòng ngắn gọn:
+     - [Công thức/Định luật] = [Kết quả].
+     - Đáp số: [Số].
 
-6. QUY TẮC CÔNG THỨC & ĐƠN VỊ (QUAN TRỌNG NHẤT):
+4. PHÂN TÍCH ĐÁP ÁN:
+   - Quét toàn bộ nội dung để tìm bảng đáp án (thường ở cuối trang hoặc đính kèm).
+   - Nếu tài liệu không có bảng đáp án, AI tự tính để xác định 'correctAnswer'.
+
+5. NHẬN DIỆN MỨC ĐỘ (level: "B" | "H" | "VD" | "VDC"):
+   - Tự động nhận diện: [B], [NB] -> "B" (Nhận biết); [H], [TH] -> "H" (Thông hiểu); [VD] -> "VD" (Vận dụng); [VDC] -> "VDC" (Vận dụng cao).
+
+6. QUY TẮC CÔNG THỨC & ĐƠN VỊ:
    - Mọi công thức toán học phải bọc trong cặp dấu $...$ (VD: $x^2 + y^2 = R^2$, $\\Delta t = 2$ s).
    - TUYỆT ĐỐI KHÔNG dùng thẻ \\text{...}, \\mathrm{...}, \\mbox{...} (để tránh lỗi JSON escape \\t thành 'ext').
    - Đơn vị đo (m/s, km/h, kg, g, N, J, W, V, A, Hz, s, min, h, cm, rad/s...): Viết dạng văn bản thường ngoài dấu $ (VD: '$v = 20$ m/s', '$m = 5$ kg') hoặc viết trực tiếp (VD: '$20$ m/s').
@@ -119,9 +127,9 @@ QUY TẮC TRÍCH XUẤT VÀ LỜI GIẢI CHI TIẾT (CỰC KỲ QUAN TRỌNG):
    - Xóa nhãn "A.", "B.", "a)", "b)", "[B]", "(H)"... ở đầu nội dung câu hỏi và các phương án nhưng giữ nguyên dấu $ của LaTeX.
 
 VÍ DỤ CẤU TRÚC JSON:
-- MCQ: {"type": "mcq", "level": "B", "text": "Một vật dao động điều hòa...", "options": ["$10$ cm/s", "$20$ cm/s", "$30$ cm/s", "$40$ cm/s"], "correctAnswer": "$20$ cm/s", "solution": "Vận tốc cực đại của dao động điều hòa được tính theo công thức: $v_{max} = \\omega A = 10 \\cdot 2 = 20$ cm/s. Do đó chọn đáp án đúng là $20$ cm/s."}
-- GROUP-TF: {"type": "group-tf", "level": "H", "text": "Cho một vật dao động điều hòa có phương trình $x = 5\\cos(2\\pi t)$ cm...", "subQuestions": [{"text": "Biên độ dao động của vật là $5$ cm.", "correctAnswer": "True", "level": "B"}, {"text": "Tần số góc của dao động là $4\\pi$ rad/s.", "correctAnswer": "False", "level": "B"}, {"text": "Vận tốc cực đại của vật là $10\\pi$ cm/s.", "correctAnswer": "True", "level": "H"}, {"text": "Gia tốc cực đại của vật là $100\\pi^2$ cm/s$^2$.", "correctAnswer": "False", "level": "VD"}], "solution": "a) Đúng. Từ phương trình $x = 5\\cos(2\\pi t)$ cm, ta có biên độ $A = 5$ cm.\\nb) Sai. Tần số góc là $\\omega = 2\\pi$ rad/s (không phải $4\\pi$).\\nc) Đúng. Vận tốc cực đại $v_{max} = \\omega A = 2\\pi \\cdot 5 = 10\\pi$ cm/s.\\nd) Sai. Gia tốc cực đại $a_{max} = \\omega^2 A = (2\\pi)^2 \\cdot 5 = 20\\pi^2$ cm/s$^2$ (không phải $100\\pi^2$)."}
-- SHORT: {"type": "short", "level": "VD", "text": "Một mạch dao động LC lí tưởng gồm cuộn cảm thuần $L = 2$ mH và tụ điện $C = 8$ pF. Chu kỳ dao động riêng của mạch là bao nhiêu microgiây (lấy $\\pi = 3.14$, làm tròn đến 2 chữ số thập phân)?", "correctAnswer": "0.79", "solution": "Áp dụng công thức chu kỳ dao động điện từ riêng của mạch LC:\\n$T = 2\\pi\\sqrt{LC} = 2 \\cdot 3.14 \\cdot \\sqrt{2 \\cdot 10^{-3} \\cdot 8 \\cdot 10^{-12}} = 6.28 \\cdot 4 \\cdot 10^{-7} = 2.512 \\cdot 10^{-6}$ s = $2.51$ $\\mu$s.\\nKết quả làm tròn là: $0.79$."}
+- MCQ: {"type": "mcq", "level": "B", "text": "Một vật dao động điều hòa...", "options": ["$10$ cm/s", "$20$ cm/s", "$30$ cm/s", "$40$ cm/s"], "correctAnswer": "$20$ cm/s", "solution": "- Áp dụng công thức: $v_{max} = \\omega A = 20$ cm/s.\\n- Chọn đáp án: $20$ cm/s."}
+- GROUP-TF: {"type": "group-tf", "level": "H", "text": "Cho một vật dao động điều hòa có phương trình $x = 5\\cos(2\\pi t)$ cm...", "subQuestions": [{"text": "Biên độ dao động của vật là $5$ cm.", "correctAnswer": "True", "level": "B"}, {"text": "Tần số góc của dao động là $4\\pi$ rad/s.", "correctAnswer": "False", "level": "B"}, {"text": "Vận tốc cực đại của vật là $10\\pi$ cm/s.", "correctAnswer": "True", "level": "H"}, {"text": "Gia tốc cực đại của vật là $100\\pi^2$ cm/s$^2$.", "correctAnswer": "False", "level": "VD"}], "solution": "- a) Đúng. Biên độ $A = 5$ cm.\\n- b) Sai. Tần số góc $\\omega = 2\\pi$ rad/s.\\n- c) Đúng. Vận tốc cực đại $v_{max} = \\omega A = 10\\pi$ cm/s.\\n- d) Sai. Gia tốc cực đại $a_{max} = \\omega^2 A = 20\\pi^2$ cm/s$^2$."}
+- SHORT: {"type": "short", "level": "VD", "text": "Một mạch dao động LC lí tưởng gồm cuộn cảm thuần $L = 2$ mH và tụ điện $C = 8$ pF. Chu kỳ dao động riêng của mạch là bao nhiêu microgiây (làm tròn đến 2 chữ số thập phân)?", "correctAnswer": "0.79", "solution": "- Chu kỳ dao động: $T = 2\\pi\\sqrt{LC} = 2,51 \\cdot 10^{-6}$ s = $2,51$ $\\mu$s.\\n- Đáp số: $0.79$."}
 `;
 
 const processAIQuestions = (rawData: any[]): Question[] => {
@@ -251,13 +259,14 @@ QUY TẮC KỸ THUẬT BẮT BUỘC:
    - TUYỆT ĐỐI KHÔNG dùng thẻ \\text{...}, \\mathrm{...}, \\mbox{...} trong công thức (tránh lỗi JSON escape \\t thành 'ext').
    - Đơn vị đo (m/s, km/h, kg, g, N, J, W, V, A, Hz, s, min, h, cm, rad/s...): Hãy viết dạng văn bản thường ngoài dấu $ (VD: '$v = 20$ m/s', '$m = 5$ kg', '$F = 10$ N') hoặc viết trực tiếp (VD: '$20$ m/s').
    - Chỉ số trên/dưới (VD: $v_{max}$, $F_{ms}$, $m_1$, $x_2$, $I_{hd}$): Đánh trực tiếp chữ vào chỉ số không bọc \\text{}.
-2. Solution (Lời giải): Phải có lời giải chi tiết, sư phạm cho từng câu.
-3. MCQ: 'correctAnswer' phải là nội dung của phương án đúng (không kèm nhãn A, B, C, D).
+2. Solution (Lời giải): Lời giải đơn giản, súc tích bằng các gạch đầu dòng. Viết công thức rồi ghi dấu bằng ra kết quả ngay ([Công thức] = [Kết quả]), TUYỆT ĐỐI BỎ QUA quá trình thay số/điền số chi tiết vào giữa các phép tính để tránh rối mắt.
+3. MCQ: 'correctAnswer' phải là nội dung của phương án đúng (không kèm nhãn A, B, C, D). 'solution' gồm: - Áp dụng công thức: [Công thức] = [Kết quả]. - Chọn đáp án: [Phương án đúng].
 4. GROUP-TF: 
    - 'subQuestions' phải có chính xác 4 ý (a, b, c, d).
-   - 'solution' phải giải thích chi tiết cho từng ý theo mẫu:
-     a) [Đúng/Sai] : Vì [Lý do chi tiết]
-     ... (tương tự cho b, c, d)
+   - 'solution' trình bày 4 gạch đầu dòng ngắn gọn:
+     - a) [Đúng/Sai]. Vì [Công thức] = [Kết quả]
+     - b) [Đúng/Sai]. Vì [Công thức] = [Kết quả]
+     ... (tương tự cho c, d)
 5. Options: Tuyệt đối KHÔNG bao gồm nhãn "A.", "B.", "C.", "D." vào nội dung phương án.
 6. JSON: Trả về kết quả dưới dạng mảng JSON chuẩn xác theo schema đã định.`;
 
@@ -665,25 +674,33 @@ export const solveQuestionWithAI = async (
     }
 
     const prompt = `Bạn là giáo viên chuyên môn môn ${subject} khối lớp ${grade} THPT Việt Nam.
-NHIỆM VỤ: Hãy giải bài toán/câu hỏi sau một cách chi tiết, sư phạm, bước giải rõ ràng, mạch lạc và chính xác 100%.
+NHIỆM VỤ: Hãy giải bài toán/câu hỏi sau một cách ngắn gọn, sư phạm, bước giải súc tích, mạch lạc và chính xác 100%.
 
 ${questionDesc}
 
-YÊU CẦU ĐẶC BIỆT (BẮT BUỘC):
-1. LỜI GIẢI CHI TIẾT ('solution'):
-   - Với MCQ (Trắc nghiệm 4 lựa chọn): Trình bày các bước tính toán/lập luận cụ thể và chốt phương án đúng.
-   - Với GROUP-TF (Đúng/Sai): BẮT BUỘC giải thích chi tiết cho cả 4 ý theo mẫu:
-     a) Đúng. [Giải thích chi tiết phép tính/định lý...]
-     b) Sai. [Chỉ rõ điểm sai và tính lại kết quả đúng...]
-     c) Đúng. [Giải thích chi tiết...]
-     d) Sai. [Giải thích chi tiết...]
-   - Với SHORT (Trả lời ngắn): Trình bày các bước giải chi tiết dẫn đến kết quả số cuối cùng.
-2. CÔNG THỨC & ĐƠN VỊ:
+YÊU CẦU LỜI GIẢI ('solution') - BẮT BUỘC:
+1. PHONG CÁCH & QUY TẮC CÔNG THỨC:
+   - Trình bày đơn giản bằng các gạch đầu dòng (- ...).
+   - Nêu công thức/định luật rồi ghi dấu bằng ra kết quả luôn (Dạng: [Công thức] = [Kết quả]). 
+   - TUYỆT ĐỐI BỎ QUA quá trình điền/thay thế số chi tiết, vụn vặt vào giữa các phép tính để tránh rối mắt.
+2. CẤU TRÚC THEO DẠNG:
+   - Với MCQ (Trắc nghiệm 4 lựa chọn):
+     - Áp dụng công thức: [Công thức] = [Kết quả].
+     - Chọn đáp án: [Phương án đúng].
+   - Với GROUP-TF (Đúng/Sai): BẮT BUỘC giải thích cho cả 4 ý theo gạch đầu dòng ngắn gọn:
+     - a) [Đúng/Sai]. Vì [Công thức] = [Kết quả].
+     - b) [Đúng/Sai]. Vì [Công thức] = [Kết quả đúng].
+     - c) [Đúng/Sai]. Vì [Công thức / Lý do ngắn gọn].
+     - d) [Đúng/Sai]. Vì [Công thức / Lý do ngắn gọn].
+   - Với SHORT (Trả lời ngắn):
+     - [Công thức/Định luật] = [Kết quả].
+     - Đáp số: [Số].
+3. CÔNG THỨC & ĐƠN VỊ:
    - Mọi công thức bọc trong $...$.
    - TUYỆT ĐỐI KHÔNG dùng \\text{...}, \\mathrm{...} (để tránh lỗi JSON escape).
    - Đơn vị viết bên ngoài dấu $ (VD: '$v = 20$ m/s', '$m = 5$ kg').
    - Chỉ số dưới viết trực tiếp (VD: $v_{max}$, $F_{ms}$).
-3. ĐÁP ÁN ĐÚNG ('correctAnswer'): Nếu câu hỏi chưa có đáp án hoặc bạn tìm ra đáp án đúng, hãy cung cấp nội dung đáp án đúng.`;
+4. ĐÁP ÁN ĐÚNG ('correctAnswer'): Nếu câu hỏi chưa có đáp án hoặc bạn tìm ra đáp án đúng, hãy cung cấp nội dung đáp án đúng.`;
 
     try {
         const response = await ai.models.generateContent({
