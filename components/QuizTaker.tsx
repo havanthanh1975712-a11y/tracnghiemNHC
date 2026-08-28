@@ -101,6 +101,7 @@ export default function QuizTaker({ quiz, student, onExit }: QuizTakerProps) {
     }, [currentAnswers, spent, violations, submitStatus]);
 
     const updateMonitorStatus = async (violationCount: number, isFinished = false) => {
+        if (!quiz.isMonitored) return;
         try {
             const session: ExamSession = {
                 id: sessionIdRef.current,
@@ -119,12 +120,14 @@ export default function QuizTaker({ quiz, student, onExit }: QuizTakerProps) {
     };
 
     useEffect(() => {
-        updateMonitorStatus(0);
-        const heartbeat = setInterval(() => {
-            if (!isSubmitting && submitStatus !== 'done') updateMonitorStatus(violationsRef.current);
-        }, 30000);
-        return () => clearInterval(heartbeat);
-    }, []);
+        if (quiz.isMonitored) {
+            updateMonitorStatus(0);
+            const heartbeat = setInterval(() => {
+                if (!isSubmitting && submitStatus !== 'done') updateMonitorStatus(violationsRef.current);
+            }, 30000);
+            return () => clearInterval(heartbeat);
+        }
+    }, [quiz.isMonitored]);
 
     useEffect(() => {
         if (submitStatus === 'done') return;

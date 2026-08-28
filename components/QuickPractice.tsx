@@ -1,10 +1,8 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Quiz, Question, User, ExamSession } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Quiz, Question, User } from '../types';
 import { ChevronRight, ChevronLeft, CheckCircle2, XCircle, HelpCircle, Lightbulb, Home, Brain, Zap, ArrowRight, BookOpen } from 'lucide-react';
 import LatexText from './LatexText';
-import { saveExamSession, deleteExamSession } from '../services/storage';
-import { v4 as uuidv4 } from 'uuid';
 
 interface QuickPracticeProps {
   quiz: Quiz;
@@ -13,40 +11,11 @@ interface QuickPracticeProps {
 }
 
 export default function QuickPractice({ quiz, student, onExit }: QuickPracticeProps) {
-  const sessionIdRef = useRef(`sess_prac_${student.id}_${quiz.id}_${uuidv4().slice(0, 8)}`);
-  const initialStartTimeRef = useRef(new Date().toISOString());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<any>(null); // Lưu đáp án chọn (string cho mcq/short, object cho tf)
   const [isAnswered, setIsAnswered] = useState(false);
   const [showContent, setShowContent] = useState(true);
   const [memoryTimer, setMemoryTimer] = useState(10); 
-
-  const updateMonitorStatus = async (isFinished = false) => {
-    try {
-        const session: ExamSession = {
-            id: sessionIdRef.current,
-            quizId: quiz.id,
-            quizTitle: `[LUYỆN TẬP] ${quiz.title}`,
-            studentId: student.id,
-            studentName: student.fullName,
-            studentCode: student.studentCode || 'N/A',
-            startTime: initialStartTimeRef.current,
-            lastUpdate: new Date().toISOString(),
-            violationCount: 0,
-            isFinished: isFinished
-        } as ExamSession;
-        await saveExamSession(session);
-    } catch (e) {}
-  };
-
-  useEffect(() => {
-    updateMonitorStatus();
-    const heartbeat = setInterval(() => updateMonitorStatus(), 30000);
-    return () => {
-        clearInterval(heartbeat);
-        deleteExamSession(sessionIdRef.current);
-    };
-  }, []);
 
   const currentQuestion = quiz.questions[currentIndex];
 

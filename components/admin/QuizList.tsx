@@ -6,7 +6,7 @@ import {
   EyeOff, ShieldCheck, GraduationCap, Share2, User as UserIcon, Lock, BookOpen,
   Check, X, CheckSquare, Square, Info, Sparkles, Send, Layers, AlertCircle
 } from 'lucide-react';
-import { isSameSubject, STANDARD_SUBJECTS } from '../../services/subjectUtils';
+import { isSameSubject, STANDARD_SUBJECTS, normalizeSubject, getDisplaySubject } from '../../services/subjectUtils';
 
 interface QuizListProps {
     quizzes: Quiz[];
@@ -93,19 +93,37 @@ export default function QuizList({
     const qSubjectFilter = propSubjectFilter !== undefined ? propSubjectFilter : localSubjectFilter;
     const setQSubjectFilter = propSetSubjectFilter !== undefined ? propSetSubjectFilter : setLocalSubjectFilter;
 
-    // Danh sách tất cả môn học có sẵn trong hệ thống
+    // Danh sách tất cả môn học có sẵn trong hệ thống (đã chuẩn hóa và khử trùng lặp)
     const availableSubjects = useMemo(() => {
-        const set = new Set<string>(STANDARD_SUBJECTS);
+        const subsMap = new Map<string, string>();
+        STANDARD_SUBJECTS.forEach(s => {
+            subsMap.set(normalizeSubject(s), s);
+        });
         quizzes.forEach(q => {
-            if (q.subject?.trim()) set.add(q.subject.trim());
+            if (q.subject && q.subject.trim()) {
+                const norm = normalizeSubject(q.subject);
+                if (!subsMap.has(norm)) {
+                    subsMap.set(norm, getDisplaySubject(q.subject));
+                }
+            }
         });
         chapters.forEach(c => {
-            if (c.subject?.trim()) set.add(c.subject.trim());
+            if (c.subject && c.subject.trim()) {
+                const norm = normalizeSubject(c.subject);
+                if (!subsMap.has(norm)) {
+                    subsMap.set(norm, getDisplaySubject(c.subject));
+                }
+            }
         });
         teachers.forEach(t => {
-            if (t.subject?.trim()) set.add(t.subject.trim());
+            if (t.subject && t.subject.trim()) {
+                const norm = normalizeSubject(t.subject);
+                if (!subsMap.has(norm)) {
+                    subsMap.set(norm, getDisplaySubject(t.subject));
+                }
+            }
         });
-        return Array.from(set).filter(Boolean);
+        return Array.from(subsMap.values());
     }, [quizzes, chapters, teachers]);
 
     // Lọc giáo viên thông minh theo môn học được chọn (cho SuperAdmin)
