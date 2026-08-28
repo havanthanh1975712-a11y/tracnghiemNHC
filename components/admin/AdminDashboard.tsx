@@ -558,20 +558,46 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const handleEditQuiz = async (quiz: Quiz) => {
     setIsDataLoading(true);
     try {
-        const fullQuiz = await getQuizById(quiz.id);
-        if (fullQuiz) {
-            setEditingQuizId(fullQuiz.id); setQuizTitle(fullQuiz.title); setQuizGrade(fullQuiz.grade);
-            setQuizSubject(fullQuiz.subject || mySubject || currentUser?.subject || 'Toán');
-            setQuizType(fullQuiz.type); setIsPublished(fullQuiz.isPublished); setIsMonitored(fullQuiz.isMonitored || false);
-            setDisablePractice(fullQuiz.disablePractice || false);
-            setIsUnlisted(fullQuiz.isUnlisted || false);
-            setIsSharedWithTeachers(Boolean(fullQuiz.isSharedWithTeachers));
-            setTargetType(isSuperAdmin ? (fullQuiz.targetType || 'all') : 'classes');
-            setAssignedClassIds(fullQuiz.assignedClassIds || []);
-            setDuration(fullQuiz.durationMinutes); setOrderIndex(fullQuiz.orderIndex || 1); setCategory(fullQuiz.category || ''); setStartTime(fullQuiz.startTime || '');
-            setEndTime(fullQuiz.endTime || ''); setQuestions(fullQuiz.questions); setIsEditingQuiz(true);
-            setActiveTab('quizzes');
+        let fullQuiz: Quiz | null = null;
+        try {
+            fullQuiz = await getQuizById(quiz.id);
+        } catch (e) {
+            console.warn("getQuizById exception, fallback to provided quiz object:", e);
         }
+
+        const qData: Quiz = (fullQuiz && fullQuiz.questions && fullQuiz.questions.length > 0)
+            ? fullQuiz
+            : { ...quiz, ...(fullQuiz || {}) };
+
+        setEditingQuizId(qData.id); 
+        setQuizTitle(qData.title || ''); 
+        setQuizGrade(qData.grade || '12');
+        setQuizSubject(qData.subject || mySubject || currentUser?.subject || 'Toán');
+        setQuizType(qData.type || 'test'); 
+        setIsPublished(Boolean(qData.isPublished)); 
+        setIsMonitored(Boolean(qData.isMonitored));
+        setDisablePractice(Boolean(qData.disablePractice));
+        setIsUnlisted(Boolean(qData.isUnlisted));
+        setIsSharedWithTeachers(Boolean(qData.isSharedWithTeachers));
+        setTargetType(isSuperAdmin ? (qData.targetType || 'all') : 'classes');
+        setAssignedClassIds(qData.assignedClassIds || []);
+        setDuration(qData.durationMinutes || 45); 
+        setOrderIndex(qData.orderIndex || 1); 
+        setCategory(qData.category || ''); 
+        setStartTime(qData.startTime || '');
+        setEndTime(qData.endTime || ''); 
+        setQuestions(qData.questions || []); 
+        setIsEditingQuiz(true);
+        setActiveTab('quizzes');
+    } catch (err) {
+        console.error("Lỗi khi mở sửa đề:", err);
+        setEditingQuizId(quiz.id);
+        setQuizTitle(quiz.title || '');
+        setQuizGrade(quiz.grade || '12');
+        setQuizSubject(quiz.subject || mySubject || currentUser?.subject || 'Toán');
+        setQuestions(quiz.questions || []);
+        setIsEditingQuiz(true);
+        setActiveTab('quizzes');
     } finally {
         setIsDataLoading(false);
     }

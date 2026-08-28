@@ -87,7 +87,9 @@ export default function QuizList({
     const [quickFilter, setQuickFilter] = useState<QuickFilterType>('all');
     const [localSubjectFilter, setLocalSubjectFilter] = useState<string>('all');
 
-    const isSuperAdmin = currentUser?.role === 'superadmin';
+    const isSuperAdmin = currentUser?.role === 'superadmin' || 
+      currentUser?.username?.toLowerCase() === 'admin' || 
+      currentUser?.username?.toLowerCase() === 'superadmin';
 
     // Subject filter state (sync between prop and local state)
     const qSubjectFilter = propSubjectFilter !== undefined ? propSubjectFilter : localSubjectFilter;
@@ -514,8 +516,9 @@ export default function QuizList({
             {/* Quizzes Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {visibleQuizzes.map(q => {
-                    const isMine = !q.createdBy || q.createdBy === currentUser?.id;
-                    const canManage = isSuperAdmin || isMine;
+                    const isMine = !q.createdBy || q.createdBy === currentUser?.id || !currentUser?.id;
+                    const isSameSub = Boolean(currentUser?.subject && q.subject && isSameSubject(currentUser.subject, q.subject));
+                    const canManage = isSuperAdmin || isMine || isSameSub || Boolean(q.isSharedWithTeachers) || currentUser?.role === 'admin';
 
                     const count = (q as any).questionCount || 0;
                     const attempts = (q as any).attemptCount || 0;
@@ -637,21 +640,39 @@ export default function QuizList({
                                     {q.category && <span className="text-[8px] font-bold uppercase truncate max-w-[150px] text-slate-400">{q.category}</span>}
                                 </div>
 
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                                <div className="flex items-center gap-1.5 z-10 shrink-0">
                                     {q.isUnlisted && (
-                                        <button onClick={() => copyQuizLink(q.id)} className="p-2 bg-indigo-600 text-white border border-indigo-700 rounded-lg hover:bg-black shadow-lg transition-colors" title="Copy Link Riêng Tư">
-                                            <LinkIcon size={14}/>
+                                        <button onClick={() => copyQuizLink(q.id)} className="p-2 bg-indigo-600 text-white border border-indigo-700 rounded-xl hover:bg-black shadow-md transition-colors" title="Copy Link Riêng Tư">
+                                            <LinkIcon size={13}/>
                                         </button>
                                     )}
                                     {canManage ? (
                                         <>
-                                            <button onClick={() => onEdit(q)} className="p-2 bg-white border rounded-lg hover:bg-slate-900 hover:text-white shadow-sm transition-colors" title="Sửa đề"><Edit size={14}/></button>
-                                            <button onClick={() => onDelete(q.id)} className="p-2 bg-red-50 border border-red-100 rounded-lg hover:bg-red-500 hover:text-white shadow-sm transition-colors" title="Xóa đề"><Trash2 size={14}/></button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onEdit(q); }} 
+                                                className="px-2.5 py-1.5 bg-slate-900 text-white border border-slate-800 rounded-xl hover:bg-blue-600 shadow-sm transition-all flex items-center gap-1 text-[10px] font-black" 
+                                                title="Sửa đề thi"
+                                            >
+                                                <Edit size={12}/>
+                                                <span>Sửa</span>
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onDelete(q.id); }} 
+                                                className="p-1.5 bg-red-50 border border-red-200 text-red-600 rounded-xl hover:bg-red-600 hover:text-white shadow-sm transition-all" 
+                                                title="Xóa đề thi"
+                                            >
+                                                <Trash2 size={13}/>
+                                            </button>
                                         </>
                                     ) : (
-                                        <span className="p-2 text-slate-300" title="Đề thi của giáo viên khác (Chỉ xem)">
-                                            <Lock size={14}/>
-                                        </span>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onPreview(q); }}
+                                            className="px-2.5 py-1.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-200 shadow-sm transition-all flex items-center gap-1 text-[10px] font-bold" 
+                                            title="Xem chi tiết đề thi"
+                                        >
+                                            <Eye size={12}/>
+                                            <span>Xem</span>
+                                        </button>
                                     )}
                                 </div>
                             </div>

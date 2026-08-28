@@ -522,12 +522,44 @@ export const findUser = async (username: string): Promise<User | undefined> => {
   if (!db) return undefined;
   try {
     const targetUser = username.trim().toLowerCase();
+    
+    // 1. Direct query by lowercase username
     const q = query(collection(db, 'users'), where('username', '==', targetUser), limit(1));
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
       const d = snapshot.docs[0].data();
       return (d.data as User) || ({ ...d, id: snapshot.docs[0].id } as User);
     }
+
+    // 2. Direct query by original username (case as typed)
+    const qOriginal = query(collection(db, 'users'), where('username', '==', username.trim()), limit(1));
+    const snapOriginal = await getDocs(qOriginal);
+    if (!snapOriginal.empty) {
+      const d = snapOriginal.docs[0].data();
+      return (d.data as User) || ({ ...d, id: snapOriginal.docs[0].id } as User);
+    }
+
+    // 3. Fallback: scan all users in collection in case username is stored with mixed casing, in data subfield, or email
+    const allSnapshot = await getDocs(collection(db, 'users'));
+    for (const docItem of allSnapshot.docs) {
+      const row = docItem.data();
+      const u = (row.data as User) || (row as User);
+      const docUsername = (u.username || row.username || '').trim().toLowerCase();
+      const docId = docItem.id.toLowerCase();
+      const docEmail = (u.email || row.email || '').trim().toLowerCase();
+      
+      if (docUsername === targetUser || docId === targetUser || (docEmail && docEmail === targetUser)) {
+        return {
+          ...u,
+          id: docItem.id,
+          username: u.username || row.username || docItem.id,
+          fullName: u.fullName || row.fullName || 'Giáo viên',
+          role: u.role || row.role || 'admin',
+          password: u.password || row.password || '123'
+        };
+      }
+    }
+
     return undefined;
   } catch (e) {
     console.error("Lỗi findUser Firestore:", e);
@@ -558,16 +590,37 @@ export const deleteUser = async (id: string): Promise<void> => {
 export const changePassword = async (userId: string, newPassword: string): Promise<boolean> => {
   if (!db) return false;
   try {
-    const userRef = doc(db, 'users', userId);
-    const docSnap = await getDoc(userRef);
-    if (!docSnap.exists()) return false;
-    const raw = docSnap.data();
-    const user: User = raw.data || raw;
-    const updatedUser = { ...user, password: newPassword };
-    await updateDoc(userRef, {
+    let userRef = doc(db, 'users', userId);
+    let docSnap = await getDoc(userRef);
+    
+    if (!docSnap.exists()) {
+      // Find document by id or username if doc ID didn't match directly
+      const allSnapshot = await getDocs(collection(db, 'users'));
+      const found = allSnapshot.docs.find(d => {
+        const row = d.data();
+        const u = (row.data as User) || (row as User);
+        return d.id === userId || u.id === userId || (u.username && u.username.toLowerCase() === userId.toLowerCase());
+      });
+      
+      if (found) {
+        userRef = found.ref;
+        docSnap = found;
+      } else {
+        console.warn("changePassword: user not found with ID", userId);
+        return false;
+      }
+    }
+
+    const raw = docSnap.data() || {};
+    const user: User = (raw.data as User) || (raw as User);
+    const updatedUser: User = { ...user, password: newPassword };
+    
+    await setDoc(userRef, cleanUndefined({
+      ...raw,
       password: newPassword,
       data: updatedUser
-    });
+    }), { merge: true });
+
     return true;
   } catch (e) {
     console.error("Lỗi changePassword:", e);

@@ -107,7 +107,7 @@ export default function TeacherManager({
         id: editingTeacher?.id || uuidv4(),
         fullName: formData.fullName.trim(),
         username: cleanUsername,
-        password: formData.password || '123',
+        password: formData.password && formData.password.trim() ? formData.password.trim() : (editingTeacher?.password || '123'),
         role: formData.role,
         subject: formData.subject.trim() || undefined,
         email: formData.email.trim() || undefined,
