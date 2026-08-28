@@ -544,7 +544,12 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                     return (
                       <div key={q.id} className={`bg-white rounded-[1.5rem] border border-slate-200 p-6 flex flex-col transition-all border-b-4 ${status.isLocked ? 'opacity-75 grayscale' : 'hover:shadow-xl hover:-translate-y-1 group hover:border-b-blue-600'}`}>
                         <div className="flex justify-between items-start mb-3">
-                          <div className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg font-black text-[8px] uppercase">{q.questions.length} câu</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg font-black text-[8px] uppercase">{q.questions.length} câu</div>
+                            {q.disablePractice && (
+                              <span className="px-2 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg font-black text-[7px] uppercase">ĐÃ TẮT LUYỆN</span>
+                            )}
+                          </div>
                           <span className="text-[9px] font-black text-slate-300 uppercase">{q.grade === 'all' ? 'Chung' : `Khối ${q.grade}`}</span>
                         </div>
                         {q.category && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1 italic truncate">{q.category}</p>}
@@ -564,9 +569,11 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                                     <div><p className="text-[7px] font-black text-slate-400 uppercase mb-0.5">Đã làm</p><p className="text-xs font-black text-slate-700">{qs?.count || 0}</p></div>
                                     <div><p className="text-[7px] font-black text-blue-500 uppercase mb-0.5">Max</p><p className="text-xs font-black text-blue-600">{qs ? qs.max.toFixed(1) : '-'}</p></div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 mt-auto">
-                                  <button onClick={() => handleStartPractice(q)} className="flex items-center justify-center gap-1.5 bg-slate-900 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-black transition-all shadow-md"><Zap size={12}/> Luyện</button>
-                                  <button onClick={() => handleStartQuiz(q)} className="flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-blue-700 transition-all">Làm</button>
+                                <div className={`grid gap-2 mt-auto ${q.disablePractice ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                  {!q.disablePractice && (
+                                    <button onClick={() => handleStartPractice(q)} className="flex items-center justify-center gap-1.5 bg-slate-900 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-black transition-all shadow-md"><Zap size={12}/> Luyện</button>
+                                  )}
+                                  <button onClick={() => handleStartQuiz(q)} className="flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-blue-700 transition-all">Làm bài</button>
                                 </div>
                             </>
                         )}

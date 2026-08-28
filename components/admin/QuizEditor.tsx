@@ -6,7 +6,7 @@ import {
   Target as TargetIcon, Plus, ImageIcon, Loader2, Lightbulb, Eye, ImageMinus, 
   ShieldAlert, ShieldCheck, Sparkles, Zap, Type as TypeIcon, X, Link as LinkIcon, 
   EyeOff, FileCode, GraduationCap, CheckSquare, Square, Users, Copy, Images, Check, Layers, ArrowRight,
-  Key, BookOpen, ClipboardPaste
+  Key, BookOpen, ClipboardPaste, PauseCircle
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import LatexText from '../LatexText';
@@ -28,6 +28,8 @@ interface QuizEditorProps {
     setIsPublished: (val: boolean) => void;
     isMonitored?: boolean;
     setIsMonitored: (val: boolean) => void;
+    disablePractice?: boolean;
+    setDisablePractice?: (val: boolean) => void;
     isUnlisted?: boolean;
     setIsUnlisted: (val: boolean) => void;
     isSharedWithTeachers?: boolean;
@@ -1529,7 +1531,23 @@ export default function QuizEditor(props: QuizEditorProps) {
                     )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-amber-600 uppercase ml-2 flex items-center gap-1"><Zap size={12}/> Chế độ Luyện tập</label>
+                        <button 
+                            type="button"
+                            onClick={() => {
+                                if (props.setDisablePractice) {
+                                    props.setDisablePractice(!props.disablePractice);
+                                }
+                            }} 
+                            className={`w-full p-4 rounded-[1.5rem] font-black text-[10px] border-2 transition-all flex items-center justify-center gap-2 ${props.disablePractice ? 'bg-rose-50 text-rose-600 border-rose-200 shadow-lg shadow-rose-100' : 'bg-amber-50 text-amber-700 border-amber-200 shadow-lg shadow-amber-100'}`}
+                            title="Bật hoặc Tạm thời đóng băng nút Luyện tập (Quick Practice) của đề thi này"
+                        >
+                            {props.disablePractice ? <PauseCircle size={16}/> : <Zap size={16}/>}
+                            {props.disablePractice ? 'ĐÃ ĐÓNG BĂNG (TẮT)' : 'BẬT NÚT LUYỆN TẬP'}
+                        </button>
+                    </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-red-600 uppercase ml-2 flex items-center gap-1"><ShieldAlert size={12}/> Chế độ bảo mật</label>
                         <button 

@@ -4,7 +4,7 @@ import { Quiz, Result, Grade, Chapter, ClassRoom, User } from '../../types';
 import { 
   Edit, Trash2, Eye, Users, Filter, FileText, ChevronDown, Link as LinkIcon, 
   EyeOff, ShieldCheck, GraduationCap, Share2, User as UserIcon, Lock, BookOpen,
-  Check, X, CheckSquare, Square, Info, Sparkles, Send, Layers, AlertCircle
+  Check, X, CheckSquare, Square, Info, Sparkles, Send, Layers, AlertCircle, PauseCircle
 } from 'lucide-react';
 import { isSameSubject, STANDARD_SUBJECTS, normalizeSubject, getDisplaySubject } from '../../services/subjectUtils';
 
@@ -605,6 +605,11 @@ export default function QuizList({
                                         {q.isMonitored && (
                                             <span className="p-1 bg-red-50 text-red-500 rounded-md" title="Có giám sát">
                                                 <ShieldCheck size={10}/>
+                                            </span>
+                                        )}
+                                        {q.disablePractice && (
+                                            <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded-lg text-[8px] font-black uppercase flex items-center gap-1 border border-rose-100" title="Đã tắt chế độ luyện tập">
+                                                <PauseCircle size={10}/> TẮT LUYỆN
                                             </span>
                                         )}
                                     </div>

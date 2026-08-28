@@ -178,6 +178,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [mySubject, setMySubject] = useState<string>(() => currentUser?.subject || 'Toán');
   const [isPublished, setIsPublished] = useState(false);
   const [isMonitored, setIsMonitored] = useState(false);
+  const [disablePractice, setDisablePractice] = useState(false);
   const [isUnlisted, setIsUnlisted] = useState(false);
   const [isSharedWithTeachers, setIsSharedWithTeachers] = useState(false);
   const [targetType, setTargetType] = useState<'all' | 'classes'>('all');
@@ -546,7 +547,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const handleCreateQuiz = () => {
     setEditingQuizId(null); setQuizTitle(''); setQuizGrade('12'); setQuizType('test');
     setQuizSubject(mySubject || currentUser?.subject || 'Toán');
-    setIsPublished(false); setIsMonitored(false); setIsUnlisted(false);
+    setIsPublished(false); setIsMonitored(false); setDisablePractice(false); setIsUnlisted(false);
     setIsSharedWithTeachers(false);
     setTargetType(isSuperAdmin ? 'all' : 'classes'); setAssignedClassIds([]);
     setDuration(45); setOrderIndex(1); setCategory('');
@@ -562,6 +563,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
             setEditingQuizId(fullQuiz.id); setQuizTitle(fullQuiz.title); setQuizGrade(fullQuiz.grade);
             setQuizSubject(fullQuiz.subject || mySubject || currentUser?.subject || 'Toán');
             setQuizType(fullQuiz.type); setIsPublished(fullQuiz.isPublished); setIsMonitored(fullQuiz.isMonitored || false);
+            setDisablePractice(fullQuiz.disablePractice || false);
             setIsUnlisted(fullQuiz.isUnlisted || false);
             setIsSharedWithTeachers(Boolean(fullQuiz.isSharedWithTeachers));
             setTargetType(isSuperAdmin ? (fullQuiz.targetType || 'all') : 'classes');
@@ -797,6 +799,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
       subject: finalQuizSubject,
       isPublished, 
       isMonitored, 
+      disablePractice,
       isUnlisted, 
       isSharedWithTeachers,
       createdBy: existingQuiz ? (existingQuiz.createdBy || currentUser?.id) : currentUser?.id,
@@ -1403,6 +1406,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                     grade={quizGrade} setGrade={setQuizGrade} quizType={quizType} setQuizType={setQuizType}
                     subject={quizSubject} setSubject={setQuizSubject}
                     isPublished={isPublished} setIsPublished={setIsPublished} isMonitored={isMonitored} setIsMonitored={setIsMonitored}
+                    disablePractice={disablePractice} setDisablePractice={setDisablePractice}
                     isUnlisted={isUnlisted} setIsUnlisted={setIsUnlisted}
                     isSharedWithTeachers={isSharedWithTeachers} setIsSharedWithTeachers={setIsSharedWithTeachers}
                     targetType={targetType} setTargetType={setTargetType}

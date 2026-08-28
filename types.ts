@@ -95,6 +95,7 @@ export interface Quiz {
   createdAt: string;
   isPublished: boolean;
   isMonitored?: boolean;
+  disablePractice?: boolean; // Tạm thời đóng băng hoặc tắt nút Luyện tập (Quick Practice)
   isUnlisted?: boolean; 
   orderIndex?: number; // Thứ tự trong chương
   // Phân quyền tạo đề & chia sẻ giáo viên
