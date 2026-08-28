@@ -120,17 +120,32 @@ export default function QuizList({
         return chapters.filter(c => {
             // Lọc theo Khối
             if (qGradeFilter !== 'all' && String(c.grade) !== String(qGradeFilter)) return false;
+            
             // Lọc theo Môn học
             if (isSuperAdmin) {
                 if (qSubjectFilter !== 'all') {
-                    if (c.subject && !isSameSubject(c.subject, qSubjectFilter)) return false;
+                    if (c.subject && c.subject.trim()) {
+                        if (!isSameSubject(c.subject, qSubjectFilter)) return false;
+                    } else {
+                        // Chương chưa gán môn: kiểm tra đề thi thuộc chương hoặc fallback môn Vật lí
+                        const hasQuizWithSubj = quizzes.some(q => 
+                            q.category === c.name && (
+                                (q.subject && isSameSubject(q.subject, qSubjectFilter)) ||
+                                (!q.subject && (isSameSubject('Vật lí', qSubjectFilter) || isSameSubject('Vật lý', qSubjectFilter)))
+                            )
+                        );
+                        const isPhysics = isSameSubject('Vật lí', qSubjectFilter) || isSameSubject('Vật lý', qSubjectFilter);
+                        if (!hasQuizWithSubj && !isPhysics) return false;
+                    }
                 }
             } else if (currentUser?.subject) {
-                if (c.subject && !isSameSubject(c.subject, currentUser.subject)) return false;
+                if (c.subject && c.subject.trim()) {
+                    if (!isSameSubject(c.subject, currentUser.subject)) return false;
+                }
             }
             return true;
         });
-    }, [chapters, qGradeFilter, qSubjectFilter, isSuperAdmin, currentUser?.subject]);
+    }, [chapters, qGradeFilter, qSubjectFilter, isSuperAdmin, currentUser?.subject, quizzes]);
 
     // Tự động reset bộ lọc Chương khi chương đang chọn không còn nằm trong danh sách chương phù hợp
     useEffect(() => {

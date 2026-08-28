@@ -79,6 +79,48 @@ export default function QuestionBank({
         return Array.from(subsMap.values());
     }, [questions, chapters]);
 
+    // Lọc chương thông minh: chỉ hiển thị các chương thuộc Môn học và Khối lớp tương ứng
+    const relevantChapters = useMemo(() => {
+        return chapters.filter(c => {
+            // 1. Lọc theo Khối lớp
+            if (bGradeFilter !== 'all' && String(c.grade) !== String(bGradeFilter)) {
+                return false;
+            }
+
+            // 2. Lọc theo Môn học
+            if (isSuperAdmin) {
+                if (bSubjectFilter && bSubjectFilter !== 'all') {
+                    if (c.subject && c.subject.trim()) {
+                        if (!isSameSubject(c.subject, bSubjectFilter)) return false;
+                    } else {
+                        // Chương chưa gán môn rõ ràng: kiểm tra xem có câu hỏi trong môn này không hoặc fallback Vật lí
+                        const hasQuestionInSubject = questions.some(q => 
+                            q.quizCategory === c.name && q.subject && isSameSubject(q.subject, bSubjectFilter)
+                        );
+                        const isPhysics = isSameSubject('Vật lí', bSubjectFilter) || isSameSubject('Vật lý', bSubjectFilter);
+                        if (!hasQuestionInSubject && !isPhysics) return false;
+                    }
+                }
+            } else if (currentUser?.subject) {
+                if (c.subject && c.subject.trim()) {
+                    if (!isSameSubject(c.subject, currentUser.subject)) return false;
+                }
+            }
+
+            return true;
+        });
+    }, [chapters, bGradeFilter, bSubjectFilter, isSuperAdmin, currentUser?.subject, questions]);
+
+    // Tự động reset bộ lọc Chương khi chuyển Môn hoặc Khối mà chương hiện tại không còn hợp lệ
+    useEffect(() => {
+        if (bChapterFilter !== 'all') {
+            const isStillValid = relevantChapters.some(c => c.name.toLowerCase() === bChapterFilter.toLowerCase());
+            if (!isStillValid) {
+                setBChapterFilter('all');
+            }
+        }
+    }, [relevantChapters, bChapterFilter, setBChapterFilter]);
+
     const canDeleteQuestion = (q: Question) => {
         if (isSuperAdmin) return true;
         if (currentUser?.id && q.createdBy === currentUser.id) return true;
@@ -240,7 +282,10 @@ export default function QuestionBank({
                         <select 
                             className="bg-amber-50 border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase outline-none cursor-pointer shadow-sm"
                             value={bSubjectFilter}
-                            onChange={e => setBSubjectFilter(e.target.value)}
+                            onChange={e => {
+                                setBSubjectFilter(e.target.value);
+                                setBChapterFilter('all');
+                            }}
                         >
                             <option value="all">Môn: Tất cả</option>
                             {availableSubjects.map(s => (
@@ -249,15 +294,26 @@ export default function QuestionBank({
                         </select>
                     )}
 
-                    <select className="bg-slate-50 border px-3 py-1.5 rounded-lg text-[9px] font-black uppercase outline-none" value={bGradeFilter} onChange={e => { setBGradeFilter(e.target.value as any); setBChapterFilter('all'); }}>
+                    <select 
+                        className="bg-slate-50 border px-3 py-1.5 rounded-lg text-[9px] font-black uppercase outline-none" 
+                        value={bGradeFilter} 
+                        onChange={e => { 
+                            setBGradeFilter(e.target.value as any); 
+                            setBChapterFilter('all'); 
+                        }}
+                    >
                         <option value="all">Khối: Tất cả</option>
                         <option value="12">Khối 12</option>
                         <option value="11">Khối 11</option>
                         <option value="10">Khối 10</option>
                     </select>
-                    <select className="bg-slate-50 border px-3 py-1.5 rounded-lg text-[9px] font-black uppercase outline-none max-w-[150px]" value={bChapterFilter} onChange={e => setBChapterFilter(e.target.value)}>
-                        <option value="all">Chương: Tất cả</option>
-                        {chapters.filter(c => bGradeFilter === 'all' || String(c.grade) === String(bGradeFilter)).map(c => (
+                    <select 
+                        className="bg-slate-50 border px-3 py-1.5 rounded-lg text-[9px] font-black uppercase outline-none max-w-[170px]" 
+                        value={bChapterFilter} 
+                        onChange={e => setBChapterFilter(e.target.value)}
+                    >
+                        <option value="all">Chương: Tất cả ({relevantChapters.length})</option>
+                        {relevantChapters.map(c => (
                             <option key={c.id} value={c.name}>{(c.name || (c as any).title || "Chương chưa đặt tên").toUpperCase()}</option>
                         ))}
                     </select>

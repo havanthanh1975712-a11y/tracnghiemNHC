@@ -1154,7 +1154,13 @@ export default function ClassManager({
                     >
                       <option value="all">TẤT CẢ CHƯƠNG</option>
                       {chapters
-                        .filter(c => String(c.grade) === String(selectedClass.grade) || c.grade === 'all')
+                        .filter(c => {
+                          const matchGrade = String(c.grade) === String(selectedClass.grade) || c.grade === 'all';
+                          if (!matchGrade) return false;
+                          if (selectedClass.subject && c.subject && !isSameSubject(c.subject, selectedClass.subject)) return false;
+                          if (!isSuperAdmin && currentUser?.subject && c.subject && !isSameSubject(c.subject, currentUser.subject)) return false;
+                          return true;
+                        })
                         .map(c => (
                           <option key={c.id} value={c.name}>{c.name}</option>
                         ))}
