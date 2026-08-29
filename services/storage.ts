@@ -49,6 +49,84 @@ export function cleanUndefined<T>(obj: T): T {
   return obj;
 }
 
+// --- Daily Firestore Usage Tracking (Reads, Writes, Deletes) ---
+export interface DailyFirestoreStats {
+  date: string; // YYYY-MM-DD
+  totalReads: number;
+  totalWrites: number;
+  totalDeletes: number;
+  readsByCollection: Record<string, number>;
+  lastUpdated: string;
+}
+
+export const getDailyFirestoreStats = (): DailyFirestoreStats => {
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const raw = localStorage.getItem('eduquiz_firestore_daily_stats');
+    if (raw) {
+      const parsed: DailyFirestoreStats = JSON.parse(raw);
+      if (parsed.date === today) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return {
+    date: today,
+    totalReads: 0,
+    totalWrites: 0,
+    totalDeletes: 0,
+    readsByCollection: {},
+    lastUpdated: new Date().toISOString()
+  };
+};
+
+export const trackFirestoreRead = (collectionName: string, count: number = 1) => {
+  if (count <= 0) return;
+  try {
+    const stats = getDailyFirestoreStats();
+    stats.totalReads += count;
+    stats.readsByCollection[collectionName] = (stats.readsByCollection[collectionName] || 0) + count;
+    stats.lastUpdated = new Date().toISOString();
+    localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(stats));
+  } catch {}
+};
+
+export const trackFirestoreWrite = (collectionName: string, count: number = 1) => {
+  if (count <= 0) return;
+  try {
+    const stats = getDailyFirestoreStats();
+    stats.totalWrites += count;
+    stats.lastUpdated = new Date().toISOString();
+    localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(stats));
+  } catch {}
+};
+
+export const trackFirestoreDelete = (collectionName: string, count: number = 1) => {
+  if (count <= 0) return;
+  try {
+    const stats = getDailyFirestoreStats();
+    stats.totalDeletes += count;
+    stats.lastUpdated = new Date().toISOString();
+    localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(stats));
+  } catch {}
+};
+
+export const resetDailyFirestoreStats = (): DailyFirestoreStats => {
+  const today = new Date().toISOString().split('T')[0];
+  const fresh: DailyFirestoreStats = {
+    date: today,
+    totalReads: 0,
+    totalWrites: 0,
+    totalDeletes: 0,
+    readsByCollection: {},
+    lastUpdated: new Date().toISOString()
+  };
+  try {
+    localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(fresh));
+  } catch {}
+  return fresh;
+};
+
 // Test Firestore Connection
 export const testFirebaseConnection = async (): Promise<{ success: boolean; message: string }> => {
   if (!db) return { success: false, message: "Firebase client chưa khởi tạo" };
@@ -58,6 +136,13 @@ export const testFirebaseConnection = async (): Promise<{ success: boolean; mess
     return { success: true, message: `Kết nối Firebase Cloud Firestore thành công. (${snapshot.size} bản ghi mẫu)` };
   } catch (e: any) {
     console.error("Lỗi Exception kết nối Firebase:", e);
+    const errStr = (e?.message || JSON.stringify(e) || '').toLowerCase();
+    if (errStr.includes('quota') || errStr.includes('resource_exhausted') || errStr.includes('limit exceeded')) {
+      return { 
+        success: false, 
+        message: "Hạn mức đọc CSDL miễn phí trong ngày (50.000 reads) của Firebase hôm nay đã đạt tối đa. Hệ thống sẽ tự động mở lại vào chu kỳ reset 24h tiếp theo." 
+      };
+    }
     return { success: false, message: `Lỗi kết nối Firestore: ${e.message || JSON.stringify(e)}` };
   }
 };
@@ -395,28 +480,73 @@ export const saveUsersBatch = async (users: User[]): Promise<void> => {
   }
 };
 
+// Memory cache to drastically reduce Firebase read quota consumption
+const memoryCache: {
+  teachers?: { data: User[]; expires: number };
+  chapters?: { data: Chapter[]; expires: number };
+  classes?: { data: ClassRoom[]; expires: number };
+  quizzesMeta?: { data: Quiz[]; expires: number };
+} = {};
+
+export const invalidateMemoryCache = (key?: 'teachers' | 'chapters' | 'classes' | 'quizzes') => {
+  if (!key) {
+    delete memoryCache.teachers;
+    delete memoryCache.chapters;
+    delete memoryCache.classes;
+    delete memoryCache.quizzesMeta;
+  } else if (key === 'teachers') {
+    delete memoryCache.teachers;
+  } else if (key === 'chapters') {
+    delete memoryCache.chapters;
+  } else if (key === 'classes') {
+    delete memoryCache.classes;
+  } else if (key === 'quizzes') {
+    delete memoryCache.quizzesMeta;
+  }
+};
+
 // --- Teachers Management (SuperAdmin) ---
-export const getTeachers = async (): Promise<User[]> => {
+export const getTeachers = async (forceRefresh: boolean = false): Promise<User[]> => {
   if (!db) return [];
+  const now = Date.now();
+  if (!forceRefresh && memoryCache.teachers && memoryCache.teachers.expires > now) {
+    return memoryCache.teachers.data;
+  }
+
   try {
     const qRef = collection(db, 'users');
-    const snapshot = await getDocs(qRef);
-    const teachers = snapshot.docs
-      .map(d => {
+    // Targeted query for only teacher/admin accounts rather than scanning entire collection
+    const q = query(qRef, where('role', 'in', ['admin', 'superadmin', 'teacher']));
+    const snapshot = await getDocs(q);
+    
+    let teachers: User[] = [];
+    if (!snapshot.empty) {
+      teachers = snapshot.docs.map(d => {
         const row = d.data();
         return (row.data as User) || ({ ...row, id: d.id } as User);
-      })
-      .filter(u => u.role === 'admin' || u.role === 'superadmin');
+      });
+    } else {
+      // Fallback in case indexed query is empty
+      const allSnap = await getDocs(query(qRef, limit(50)));
+      teachers = allSnap.docs
+        .map(d => {
+          const row = d.data();
+          return (row.data as User) || ({ ...row, id: d.id } as User);
+        })
+        .filter(u => u.role === 'admin' || u.role === 'superadmin' || (u.role as any) === 'teacher');
+    }
     
     teachers.sort((a, b) => {
       if (a.role === 'superadmin') return -1;
       if (b.role === 'superadmin') return 1;
       return (a.fullName || '').localeCompare(b.fullName || '');
     });
+
+    memoryCache.teachers = { data: teachers, expires: now + 5 * 60 * 1000 }; // 5 min cache
     return teachers;
   } catch (e) {
     console.error("Lỗi getTeachers:", e);
-    return [];
+    return memoryCache.teachers?.data || [];
   }
 };
 
@@ -861,8 +991,13 @@ export const syncAllQuizzesMetadata = async (): Promise<number> => {
 };
 
 // --- Chapters ---
-export const getChapters = async (): Promise<Chapter[]> => {
+export const getChapters = async (forceRefresh: boolean = false): Promise<Chapter[]> => {
   if (!db) return [];
+  const now = Date.now();
+  if (!forceRefresh && memoryCache.chapters && memoryCache.chapters.expires > now) {
+    return memoryCache.chapters.data;
+  }
+
   try {
     const snapshot = await getDocs(collection(db, 'chapters'));
     const chapters = snapshot.docs.map(d => {
@@ -880,15 +1015,18 @@ export const getChapters = async (): Promise<Chapter[]> => {
         createdByName: rawData.createdByName || row.createdByName || ''
       } as Chapter;
     });
-    return chapters.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const sorted = chapters.sort((a, b) => (a.order || 0) - (b.order || 0));
+    memoryCache.chapters = { data: sorted, expires: now + 5 * 60 * 1000 };
+    return sorted;
   } catch (e) {
     console.error("Lỗi getChapters:", e);
-    return [];
+    return memoryCache.chapters?.data || [];
   }
 };
 
 export const saveChapter = async (c: Chapter): Promise<void> => {
   if (db) {
+    invalidateMemoryCache('chapters');
     await setDoc(doc(db, 'chapters', c.id), cleanUndefined({
       id: c.id,
       grade: c.grade,
@@ -904,12 +1042,14 @@ export const saveChapter = async (c: Chapter): Promise<void> => {
 
 export const deleteChapter = async (id: string): Promise<void> => {
   if (db) {
+    invalidateMemoryCache('chapters');
     await deleteDoc(doc(db, 'chapters', id));
   }
 };
 
 export const deleteChaptersBatch = async (ids: string[]): Promise<void> => {
   if (!db || ids.length === 0) return;
+  invalidateMemoryCache('chapters');
   const batch = writeBatch(db);
   for (const id of ids) {
     batch.delete(doc(db, 'chapters', id));
@@ -918,8 +1058,13 @@ export const deleteChaptersBatch = async (ids: string[]): Promise<void> => {
 };
 
 // --- Classroom & Academic Year Management ---
-export const getClasses = async (): Promise<ClassRoom[]> => {
+export const getClasses = async (forceRefresh: boolean = false): Promise<ClassRoom[]> => {
   if (db) {
+    const now = Date.now();
+    if (!forceRefresh && memoryCache.classes && memoryCache.classes.expires > now) {
+      return memoryCache.classes.data;
+    }
+
     try {
       const snapshot = await getDocs(collection(db, 'classes'));
       if (!snapshot.empty) {
@@ -944,6 +1089,8 @@ export const getClasses = async (): Promise<ClassRoom[]> => {
           };
         });
 
+        memoryCache.classes = { data: classes, expires: now + 5 * 60 * 1000 };
+
         try {
           localStorage.setItem('eduquiz_classes_cache', JSON.stringify(classes));
         } catch (e) {}
@@ -956,6 +1103,7 @@ export const getClasses = async (): Promise<ClassRoom[]> => {
   }
 
   // Fallback to localStorage
+  if (memoryCache.classes?.data) return memoryCache.classes.data;
   try {
     const local = localStorage.getItem('eduquiz_classes_cache');
     if (local) return JSON.parse(local);
@@ -1620,6 +1768,8 @@ export interface CollectionStat {
   count: number;
   estimatedSizeBytes: number;
   description: string;
+  readsToday: number;
+  estimatedReadsPerLoad: number;
 }
 
 export interface DatabaseMetrics {
@@ -1634,6 +1784,7 @@ export interface DatabaseMetrics {
   totalDocuments: number;
   totalEstimatedSizeBytes: number;
   localCacheSizeBytes: number;
+  dailyStats: DailyFirestoreStats;
   quotas: {
     readsDailyLimit: number;
     writesDailyLimit: number;
@@ -1641,6 +1792,7 @@ export interface DatabaseMetrics {
     storageLimitBytes: number;
     bandwidthMonthlyLimitBytes: number;
     estimatedStorageUsedPercent: number;
+    readsUsedPercent: number;
   };
   lastChecked: string;
 }
@@ -1651,6 +1803,7 @@ export const pingDatabase = async (): Promise<number> => {
   try {
     const q = query(collection(db, 'users'), limit(1));
     await getDocs(q);
+    trackFirestoreRead('users', 1);
     const duration = Math.round(performance.now() - start);
     return duration;
   } catch (e) {
@@ -1664,6 +1817,7 @@ export const getDatabaseMetrics = async (): Promise<DatabaseMetrics> => {
   const databaseId = firebaseConfig?.firestoreDatabaseId || '(default)';
   const storageBucket = firebaseConfig?.storageBucket || 'N/A';
   const authDomain = firebaseConfig?.authDomain || 'N/A';
+  const dailyStats = getDailyFirestoreStats();
 
   // Calculate local storage size
   let localCacheBytes = 0;
@@ -1690,13 +1844,15 @@ export const getDatabaseMetrics = async (): Promise<DatabaseMetrics> => {
       totalDocuments: 0,
       totalEstimatedSizeBytes: 0,
       localCacheSizeBytes: localCacheBytes,
+      dailyStats,
       quotas: {
         readsDailyLimit: 50000,
         writesDailyLimit: 20000,
         deletesDailyLimit: 20000,
         storageLimitBytes: 1073741824, // 1 GiB
         bandwidthMonthlyLimitBytes: 10737418240, // 10 GiB
-        estimatedStorageUsedPercent: 0
+        estimatedStorageUsedPercent: 0,
+        readsUsedPercent: 0
       },
       lastChecked: new Date().toISOString()
     };
@@ -1708,15 +1864,15 @@ export const getDatabaseMetrics = async (): Promise<DatabaseMetrics> => {
 
   // Average size estimation per document (in bytes) based on data model complexity
   const collectionConfigs = [
-    { name: 'quizzes', label: 'Đề thi chi tiết', avgBytes: 18000, desc: 'Chứa đề thi, danh sách câu hỏi, hình ảnh và đáp án' },
-    { name: 'quizzes_metadata', label: 'Chỉ mục đề thi (Metadata)', avgBytes: 600, desc: 'Lưu thông tin tóm tắt đề phục vụ tải trang siêu tốc' },
-    { name: 'users', label: 'Tài khoản người dùng', avgBytes: 800, desc: 'Học sinh, giáo viên, quản trị viên' },
-    { name: 'results', label: 'Kết quả & Bài nộp', avgBytes: 4500, desc: 'Chi tiết bài thi của học sinh, đáp án chọn, thời gian làm' },
-    { name: 'classes', label: 'Lớp học', avgBytes: 1200, desc: 'Danh sách lớp và danh sách mã học sinh được gán' },
-    { name: 'chapters', label: 'Chương mục kiến thức', avgBytes: 400, desc: 'Phân loại bài học theo từng khối và môn' },
-    { name: 'bank_questions', label: 'Ngân hàng câu hỏi', avgBytes: 2200, desc: 'Kho câu hỏi mẫu phân theo môn học và mức độ' },
-    { name: 'exam_sessions', label: 'Phiên giám sát thi', avgBytes: 1000, desc: 'Trạng thái học sinh đang làm bài thi trực tiếp' },
-    { name: 'published_results', label: 'Kết quả công bố', avgBytes: 800, desc: 'Dữ liệu công bố điểm của các đề thi' }
+    { name: 'quizzes', label: 'Đề thi chi tiết', avgBytes: 18000, desc: 'Chứa đề thi, danh sách câu hỏi, hình ảnh và đáp án', perLoad: '1 lần tải chi tiết đề' },
+    { name: 'quizzes_metadata', label: 'Chỉ mục đề thi (Metadata)', avgBytes: 600, desc: 'Lưu thông tin tóm tắt đề phục vụ tải trang siêu tốc', perLoad: 'Phân trang (20 đề/trang)' },
+    { name: 'users', label: 'Tài khoản người dùng', avgBytes: 800, desc: 'Học sinh, giáo viên, quản trị viên', perLoad: 'Phân trang (50 user/trang)' },
+    { name: 'results', label: 'Kết quả & Bài nộp', avgBytes: 4500, desc: 'Chi tiết bài thi của học sinh, đáp án chọn, thời gian làm', perLoad: 'Phân trang (50 bài/trang)' },
+    { name: 'classes', label: 'Lớp học', avgBytes: 1200, desc: 'Danh sách lớp và danh sách mã học sinh được gán', perLoad: '1 lần (có Cache)' },
+    { name: 'chapters', label: 'Chương mục kiến thức', avgBytes: 400, desc: 'Phân loại bài học theo từng khối và môn', perLoad: '1 lần (có Cache)' },
+    { name: 'bank_questions', label: 'Ngân hàng câu hỏi', avgBytes: 2200, desc: 'Kho câu hỏi mẫu phân theo môn học và mức độ', perLoad: '1 lần theo bộ lọc môn' },
+    { name: 'exam_sessions', label: 'Phiên giám sát thi', avgBytes: 1000, desc: 'Trạng thái học sinh đang làm bài thi trực tiếp', perLoad: 'Realtime session' },
+    { name: 'published_results', label: 'Kết quả công bố', avgBytes: 800, desc: 'Dữ liệu công bố điểm của các đề thi', perLoad: '1 lần theo mã đề' }
   ];
 
   const collectionsStats: CollectionStat[] = [];
@@ -1746,12 +1902,19 @@ export const getDatabaseMetrics = async (): Promise<DatabaseMetrics> => {
       totalDocs += count;
       totalEstimatedBytes += estimatedSize;
 
+      const readsToday = dailyStats.readsByCollection[c.name] || 0;
+      const estimatedReadsPerLoad = c.name === 'quizzes_metadata' ? Math.min(20, count || 20)
+        : (c.name === 'users' || c.name === 'results') ? Math.min(50, count || 50)
+        : count;
+
       collectionsStats.push({
         name: c.name,
         label: c.label,
         count,
         estimatedSizeBytes: estimatedSize,
-        description: c.desc
+        description: c.desc,
+        readsToday,
+        estimatedReadsPerLoad
       });
     });
   } catch (err) {
@@ -1760,6 +1923,8 @@ export const getDatabaseMetrics = async (): Promise<DatabaseMetrics> => {
 
   const storageLimitBytes = 1073741824; // 1 GiB free tier
   const usedPercent = Math.min(100, Number(((totalEstimatedBytes / storageLimitBytes) * 100).toFixed(2)));
+  const readsDailyLimit = 50000;
+  const readsUsedPercent = Math.min(100, Number(((dailyStats.totalReads / readsDailyLimit) * 100).toFixed(2)));
 
   return {
     connected: true,
@@ -1773,13 +1938,15 @@ export const getDatabaseMetrics = async (): Promise<DatabaseMetrics> => {
     totalDocuments: totalDocs,
     totalEstimatedSizeBytes: totalEstimatedBytes,
     localCacheSizeBytes: localCacheBytes,
+    dailyStats,
     quotas: {
-      readsDailyLimit: 50000,
+      readsDailyLimit,
       writesDailyLimit: 20000,
       deletesDailyLimit: 20000,
       storageLimitBytes,
       bandwidthMonthlyLimitBytes: 10737418240, // 10 GiB
-      estimatedStorageUsedPercent: usedPercent
+      estimatedStorageUsedPercent: usedPercent,
+      readsUsedPercent
     },
     lastChecked: new Date().toISOString()
   };
