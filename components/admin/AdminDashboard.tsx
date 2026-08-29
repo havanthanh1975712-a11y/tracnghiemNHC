@@ -70,22 +70,20 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [bankQuestions, setBankQuestions] = useState<Question[]>([]);
 
-  // Lazy loading data
+  // Lazy loading data with memory caching to protect Firebase Quota
   const loadTabData = useCallback(async (tab: AdminTab) => {
     if (!isDatabaseConnected()) return;
     setIsDataLoading(true);
     try {
       if (tab === 'quizzes') {
-        const [q, c, r, cls, t] = await Promise.all([
+        const [q, c, cls, t] = await Promise.all([
           getQuizzesMetadata(), 
           getChapters(),
-          getResultsMetadata(),
           getClasses(),
           getTeachers()
         ]);
         setQuizzes(q);
         setChapters(c);
-        setResults(r);
         setClasses(cls);
         setTeachers(t);
       } else if (tab === 'teachers') {
@@ -98,42 +96,33 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
         setQuizzes(q);
         setClasses(cls);
       } else if (tab === 'classes') {
-        const [cls, u, q, r, c, t] = await Promise.all([
+        const [cls, q, c, t] = await Promise.all([
           getClasses(),
-          getUsers(),
           getQuizzesMetadata(),
-          getResultsMetadata(),
           getChapters(),
           getTeachers()
         ]);
         setClasses(cls);
-        setStudents(u.filter(user => user.role === 'student'));
         setQuizzes(q);
-        setResults(r);
         setChapters(c);
         setTeachers(t);
       } else if (tab === 'students') {
-        const [u, r, q, cls, t] = await Promise.all([
-          getUsers(),
-          getResultsMetadata(),
-          getQuizzesMetadata(),
+        const [pagedUsers, cls, t] = await Promise.all([
+          getUsersPage(1, 100),
           getClasses(),
           getTeachers()
         ]);
         
-        const allStudents = u.filter(user => user.role === 'student');
-        setStudents(allStudents);
-        setStudentsTotal(allStudents.length);
+        const studentList = pagedUsers.data.filter(user => user.role === 'student');
+        setStudents(studentList);
+        setStudentsTotal(pagedUsers.total || studentList.length);
         setStudentsPage(1);
-        setResults(r);
-        setQuizzes(q);
         setClasses(cls);
         setTeachers(t);
       } else if (tab === 'results') {
-        const [paged, q, u, cls, t, c] = await Promise.all([
+        const [paged, q, cls, t, c] = await Promise.all([
           getResultsMetadataPage(1, 50),
           getQuizzesMetadata(),
-          getUsers(),
           getClasses(),
           getTeachers(),
           getChapters()
@@ -142,7 +131,6 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
         setResultsTotal(paged.total);
         setResultsPage(1);
         setQuizzes(q);
-        setStudents(u.filter(user => user.role === 'student'));
         setClasses(cls);
         setTeachers(t);
         setChapters(c);
@@ -556,6 +544,17 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   };
 
   const handleEditQuiz = async (quiz: Quiz) => {
+    // Kiểm tra quyền sửa đề: Chỉ tác giả tạo đề hoặc SuperAdmin mới được sửa
+    const isMine = Boolean(currentUser?.id && quiz.createdBy === currentUser.id);
+    if (!isSuperAdmin && !isMine) {
+      showAlert(
+        "Không có quyền chỉnh sửa", 
+        "Bạn chỉ có quyền chỉnh sửa đề thi do chính mình tạo ra. Đối với đề thi của giáo viên khác chia sẻ, bạn có thể xem chi tiết hoặc dùng tính năng 'Giao Lớp' để giao cho học sinh.", 
+        "warning"
+      );
+      return;
+    }
+
     setIsDataLoading(true);
     try {
         let fullQuiz: Quiz | null = null;
@@ -864,6 +863,17 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   };
 
   const handleDeleteQuiz = (id: string) => {
+    const targetQuiz = quizzes.find(q => q.id === id);
+    const isMine = Boolean(currentUser?.id && targetQuiz?.createdBy === currentUser.id);
+    if (!isSuperAdmin && !isMine) {
+      showAlert(
+        "Không có quyền xóa", 
+        "Bạn chỉ có quyền xóa đề thi do chính mình tạo ra.", 
+        "warning"
+      );
+      return;
+    }
+
     showConfirm(
       "Xác nhận xóa đề thi",
       "Bạn có chắc chắn muốn xóa vĩnh viễn đề thi này không? Dữ liệu bảng điểm liên quan sẽ không thể phục hồi.",
