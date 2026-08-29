@@ -3,7 +3,8 @@ import {
   Database, Activity, HardDrive, RefreshCw, Download, Trash2, 
   CheckCircle2, AlertTriangle, ShieldCheck, Zap, Layers, 
   ExternalLink, Server, Globe, Cpu, ArrowUpRight, Clock,
-  FileSpreadsheet, Lock, AlertCircle, BarChart3, HelpCircle
+  FileSpreadsheet, Lock, AlertCircle, BarChart3, HelpCircle,
+  Eye, TrendingUp, RotateCcw
 } from 'lucide-react';
 import { 
   getDatabaseMetrics, 
@@ -12,6 +13,7 @@ import {
   clearLocalCache,
   syncAllQuizzesMetadata,
   deduplicateBankQuestions,
+  resetDailyFirestoreStats,
   DatabaseMetrics,
   isDatabaseConnected
 } from '../../services/storage';
@@ -75,6 +77,28 @@ export default function DatabaseMonitor({
       }
     } finally {
       setIsPinging(false);
+    }
+  };
+
+  const handleResetCounter = () => {
+    const doReset = () => {
+      resetDailyFirestoreStats();
+      fetchMetrics();
+      if (onShowAlert) {
+        onShowAlert("Đặt lại thành công", "Đã đặt lại bộ đếm số lượt đọc/ghi trong ngày về 0.", "success");
+      }
+    };
+
+    if (onShowConfirm) {
+      onShowConfirm(
+        "Đặt lại bộ đếm lượt đọc",
+        "Bạn có muốn đặt lại bộ đếm số lượt đọc/ghi hôm nay về 0 không?",
+        doReset
+      );
+    } else {
+      if (confirm("Bạn có muốn đặt lại bộ đếm số lượt đọc/ghi hôm nay về 0 không?")) {
+        doReset();
+      }
     }
   };
 
@@ -249,6 +273,61 @@ export default function DatabaseMonitor({
         </div>
       </div>
 
+      {/* Daily Quota & Read Counter Banner */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-lg border border-blue-800/50 relative overflow-hidden">
+        <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-[11px] font-black uppercase tracking-wider border border-blue-400/30">
+              <Eye size={13} className="text-blue-400" />
+              <span>Giám sát Lượt đọc Firestore trong ngày</span>
+            </div>
+            <h2 className="text-2xl font-black tracking-tight text-white">
+              {(metrics?.dailyStats?.totalReads || 0).toLocaleString()} <span className="text-base font-normal text-blue-200">/ 50,000 lượt đọc hôm nay</span>
+            </h2>
+            <p className="text-xs text-blue-100/80 leading-relaxed">
+              Hạn mức miễn phí là <strong className="text-white">50,000 lượt đọc/ngày</strong> (Reset tự động lúc <strong className="text-amber-300">14:00 - 15:00 hàng ngày theo giờ Việt Nam</strong>). 
+              Hệ thống đã kích hoạt cơ chế bộ nhớ đệm (Cache) và phân trang tự động để tiết kiệm tối đa lượt đọc.
+            </p>
+          </div>
+
+          <div className="w-full lg:w-80 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 space-y-3 shrink-0">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-blue-200 font-bold">Hạn mức đã dùng:</span>
+              <span className="font-black text-amber-300 text-sm">
+                {metrics?.quotas?.readsUsedPercent || 0}%
+              </span>
+            </div>
+
+            <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden p-0.5 border border-white/10">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ${
+                  (metrics?.quotas?.readsUsedPercent || 0) > 80 
+                    ? 'bg-red-500' 
+                    : (metrics?.quotas?.readsUsedPercent || 0) > 50 
+                    ? 'bg-amber-400' 
+                    : 'bg-emerald-400'
+                }`}
+                style={{ width: `${Math.max(1, metrics?.quotas?.readsUsedPercent || 0)}%` }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-[11px] text-blue-200/90 pt-1 border-t border-white/10 font-medium">
+              <span>Còn lại: <strong className="text-white font-black">{Math.max(0, 50000 - (metrics?.dailyStats?.totalReads || 0)).toLocaleString()}</strong></span>
+              <button
+                type="button"
+                onClick={handleResetCounter}
+                className="flex items-center gap-1 text-[10px] text-blue-300 hover:text-white underline font-bold transition-colors"
+                title="Đặt lại bộ đếm lượt đọc trong ngày"
+              >
+                <RotateCcw size={11} />
+                <span>Đặt lại đếm</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Hero Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Trạng thái & Latency */}
@@ -378,10 +457,10 @@ export default function DatabaseMonitor({
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
-                  Phân tích Dung lượng từng Bảng (Collections)
+                  Phân tích Dung lượng & Lượt đọc từng Bảng
                 </h3>
                 <p className="text-xs font-medium text-slate-500">
-                  Số lượng document và dung lượng lưu trữ ước tính chi tiết
+                  Số lượng document, dung lượng ước tính và lượt đọc trong ngày của từng Collection
                 </p>
               </div>
             </div>
@@ -396,8 +475,9 @@ export default function DatabaseMonitor({
                 <tr className="border-b border-slate-100 text-slate-400 font-black uppercase text-[10px] tracking-wider">
                   <th className="pb-3 px-3">Bảng / Collection</th>
                   <th className="pb-3 px-3">Mô tả dữ liệu</th>
-                  <th className="pb-3 px-3 text-right">Số bản ghi (Docs)</th>
-                  <th className="pb-3 px-3 text-right">Dung lượng ước tính</th>
+                  <th className="pb-3 px-3 text-right">Số bản ghi</th>
+                  <th className="pb-3 px-3 text-right">Dung lượng</th>
+                  <th className="pb-3 px-3 text-center">Đọc hôm nay</th>
                   <th className="pb-3 px-3 text-right">Tỷ trọng</th>
                 </tr>
               </thead>
@@ -413,14 +493,28 @@ export default function DatabaseMonitor({
                           {col.name}
                         </code>
                       </td>
-                      <td className="py-3.5 px-3 text-slate-500 max-w-[220px]">
-                        {col.description}
+                      <td className="py-3.5 px-3 text-slate-500 max-w-[200px]">
+                        <div>{col.description}</div>
+                        <div className="text-[10px] text-emerald-600 font-bold mt-0.5 flex items-center gap-1">
+                          <span>Định mức:</span>
+                          <span>{col.name === 'quizzes_metadata' ? 'Phân trang (20 đề/trang)' : col.name === 'users' ? 'Phân trang (50 user/trang)' : col.name === 'results' ? 'Phân trang (50 bài/trang)' : col.name === 'classes' || col.name === 'chapters' ? '1 lần (có Cache)' : 'Tải theo yêu cầu'}</span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-3 text-right font-black text-slate-800">
                         {col.count.toLocaleString()}
                       </td>
                       <td className="py-3.5 px-3 text-right font-bold text-slate-700">
                         {formatBytes(col.estimatedSizeBytes)}
+                      </td>
+                      <td className="py-3.5 px-3 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black ${
+                          (col.readsToday || 0) > 0 
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          <Eye size={12} className={col.readsToday ? 'text-blue-600' : 'text-slate-400'} />
+                          <span>{(col.readsToday || 0).toLocaleString()}</span>
+                        </span>
                       </td>
                       <td className="py-3.5 px-3 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -461,7 +555,27 @@ export default function DatabaseMonitor({
             </div>
 
             <div className="space-y-4">
-              {/* Lưu trữ */}
+              {/* Lượt Đọc trong ngày (Reads Quota) */}
+              <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200/80 space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-blue-900">Lượt đọc hôm nay (Reads):</span>
+                  <span className="text-blue-900 font-black">
+                    {(metrics?.dailyStats?.totalReads || 0).toLocaleString()} / 50,000
+                  </span>
+                </div>
+                <div className="w-full bg-blue-200/80 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max(2, metrics?.quotas?.readsUsedPercent ?? 0)}%` }}
+                  />
+                </div>
+                <div className="text-[10px] text-blue-700 flex justify-between font-medium">
+                  <span>Đã dùng: <strong className="font-bold">{metrics?.quotas?.readsUsedPercent ?? 0}%</strong></span>
+                  <span>Còn lại: <strong className="font-bold">{Math.max(0, 50000 - (metrics?.dailyStats?.totalReads || 0)).toLocaleString()}</strong></span>
+                </div>
+              </div>
+
+              {/* Dung lượng Lưu trữ */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/60 space-y-2">
                 <div className="flex justify-between text-xs font-bold">
                   <span className="text-slate-600">Dung lượng lưu trữ (Storage):</span>
@@ -501,7 +615,7 @@ export default function DatabaseMonitor({
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60 text-center">
                   <div className="text-[10px] font-black uppercase text-slate-400">Đọc (Reads / ngày)</div>
                   <div className="text-base font-black text-slate-800 mt-1">50,000</div>
-                  <div className="text-[9px] text-emerald-600 font-bold mt-0.5">Miễn phí mỗi ngày</div>
+                  <div className="text-[9px] text-emerald-600 font-bold mt-0.5">Reset 14:00-15:00 VN</div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60 text-center">
                   <div className="text-[10px] font-black uppercase text-slate-400">Ghi (Writes / ngày)</div>
