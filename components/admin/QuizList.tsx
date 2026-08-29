@@ -217,8 +217,8 @@ export default function QuizList({
                 }
             } else {
                 // Teacher (Admin)
-                const isMine = !q.createdBy || q.createdBy === currentUser?.id;
-                const isShared = Boolean(q.isSharedWithTeachers);
+                const isMine = Boolean(currentUser?.id && q.createdBy === currentUser.id);
+                const isShared = Boolean(q.isSharedWithTeachers) || !q.createdBy;
 
                 // By default, teacher can only see their own quizzes OR shared quizzes
                 if (!isMine && !isShared) return false;
@@ -516,9 +516,8 @@ export default function QuizList({
             {/* Quizzes Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {visibleQuizzes.map(q => {
-                    const isMine = !q.createdBy || q.createdBy === currentUser?.id || !currentUser?.id;
-                    const isSameSub = Boolean(currentUser?.subject && q.subject && isSameSubject(currentUser.subject, q.subject));
-                    const canManage = isSuperAdmin || isMine || isSameSub || Boolean(q.isSharedWithTeachers) || currentUser?.role === 'admin';
+                    const isMine = Boolean(currentUser?.id && q.createdBy === currentUser.id);
+                    const canManage = isSuperAdmin || isMine;
 
                     const count = (q as any).questionCount || 0;
                     const attempts = (q as any).attemptCount || 0;
