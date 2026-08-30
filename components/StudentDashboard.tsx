@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Quiz, Result, PublishedResult, Chapter, Grade } from '../types';
-import { getQuizzes, getResultsForStudent, getPublishedResults, getQuizById, getStudentActiveSessions, deleteExamSession, getChapters } from '../services/storage';
+import { getQuizzesMetadata, getResultsForStudent, getPublishedResults, getQuizById, getStudentActiveSessions, deleteExamSession, getChapters } from '../services/storage';
+import { getCurrentAcademicYear } from '../services/academicUtils';
 import QuizTaker from './QuizTaker';
 import QuickPractice from './QuickPractice';
 import ResultDetailModal from './admin/ResultDetailModal';
@@ -35,7 +36,7 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
     if (!isSilent) setIsLoading(true);
     try {
         const [allQuizzes, userResults, latestPubs, allChapters] = await Promise.all([
-            getQuizzes('all'), 
+            getQuizzesMetadata(user.grade || 'all', user.academicYear || getCurrentAcademicYear()), 
             getResultsForStudent(user.id, user.studentCode), 
             getPublishedResults(20),
             getChapters()
@@ -60,7 +61,7 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
     } finally {
         setIsLoading(false);
     }
-  }, [user.id, user.studentCode, user.grade]);
+  }, [user.id, user.studentCode]);
 
   const [sessionWarning, setSessionWarning] = useState<{
     type: 'different_quiz' | 'same_quiz';
@@ -140,13 +141,27 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
   };
 
   const handleStartQuiz = async (quiz: Quiz) => {
-    const canStart = await checkActiveSession(quiz.id);
-    if (canStart) setActiveQuiz(quiz);
+    let fullQuiz = quiz;
+    if (!quiz.questions || quiz.questions.length === 0) {
+      setIsLoading(true);
+      const fetched = await getQuizById(quiz.id);
+      setIsLoading(false);
+      if (fetched) fullQuiz = fetched;
+    }
+    const canStart = await checkActiveSession(fullQuiz.id);
+    if (canStart) setActiveQuiz(fullQuiz);
   };
 
   const handleStartPractice = async (quiz: Quiz) => {
-    const canStart = await checkActiveSession(quiz.id);
-    if (canStart) setActivePracticeQuiz(quiz);
+    let fullQuiz = quiz;
+    if (!quiz.questions || quiz.questions.length === 0) {
+      setIsLoading(true);
+      const fetched = await getQuizById(quiz.id);
+      setIsLoading(false);
+      if (fetched) fullQuiz = fetched;
+    }
+    const canStart = await checkActiveSession(fullQuiz.id);
+    if (canStart) setActivePracticeQuiz(fullQuiz);
   };
 
   // Xử lý tự động mở đề thi từ link ẩn
@@ -232,14 +247,12 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(() => refreshData(true), 60000); 
-    return () => clearInterval(interval);
   }, [refreshData]);
 
   const handleExitQuiz = () => {
     setActiveQuiz(null);
     setActivePracticeQuiz(null);
-    setTimeout(() => refreshData(), 500);
+    setTimeout(() => refreshData(true), 500);
   };
 
   const formatStudyTime = (seconds: number) => {
