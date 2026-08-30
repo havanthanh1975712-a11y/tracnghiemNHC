@@ -13,6 +13,7 @@ import LatexText from '../LatexText';
 import LatexEditorModal from './LatexEditorModal';
 import { parseQuestionsFromJSON } from '../../services/gemini';
 import { STANDARD_SUBJECTS, isSameSubject } from '../../services/subjectUtils';
+import { getAcademicYearOptions, getCurrentAcademicYear } from '../../services/academicUtils';
 
 interface QuizEditorProps {
     editingId: string | null;
@@ -22,6 +23,8 @@ interface QuizEditorProps {
     setGrade: (val: Grade) => void;
     subject?: string;
     setSubject?: (val: string) => void;
+    academicYear?: string;
+    setAcademicYear?: (val: string) => void;
     quizType: QuizType;
     setQuizType: (val: QuizType) => void;
     isPublished: boolean;
@@ -1166,7 +1169,7 @@ export default function QuizEditor(props: QuizEditorProps) {
                     </div>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2 flex items-center gap-1.5">
                             <BookOpen size={12} className="text-blue-500"/> Môn học
@@ -1201,6 +1204,18 @@ export default function QuizEditor(props: QuizEditorProps) {
                             <option value="12">Khối 12</option>
                             <option value="11">Khối 11</option>
                             <option value="10">Khối 10</option>
+                        </select>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Niên học</label>
+                        <select 
+                            className="w-full border-2 border-blue-100 bg-blue-50/40 rounded-[1.5rem] p-4 text-xs font-black text-blue-700 focus:border-blue-400 outline-none cursor-pointer" 
+                            value={props.academicYear || getCurrentAcademicYear()} 
+                            onChange={e => props.setAcademicYear && props.setAcademicYear(e.target.value)}
+                        >
+                            {getAcademicYearOptions([props.academicYear]).map(yr => (
+                                <option key={yr} value={yr}>NH {yr} {yr === getCurrentAcademicYear() ? '(Hiện hành)' : ''}</option>
+                            ))}
                         </select>
                     </div>
                     <div className="space-y-2">
