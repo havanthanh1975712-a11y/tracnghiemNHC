@@ -263,8 +263,27 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
 
   const now = new Date();
 
-  // Logic kiểm tra lộ trình học tập (Prerequisite Path)
+  // Logic kiểm tra lộ trình học tập & giới hạn số lần làm bài (Prerequisite & Max Attempts)
   const getQuizStatus = (q: Quiz) => {
+    // 1. Kiểm tra giới hạn số lần làm bài đối với đề Làm bài (Test Mode)
+    if (q.type === 'test') {
+      const maxAtt = q.maxAttempts !== undefined ? q.maxAttempts : 1;
+      const attempts = results.filter(r => r.quizId === q.id);
+      if (maxAtt > 0 && attempts.length >= maxAtt) {
+        return { 
+          isLocked: true, 
+          reason: maxAtt === 1 
+            ? 'Đã làm xong bài thi (Đã đóng băng đề thi)' 
+            : `Đã hoàn thành tối đa ${maxAtt} lượt làm bài (Đã đóng băng)` 
+        };
+      }
+    }
+
+    // 2. Kiểm tra hạn chót luyện tập đối với đề Luyện tập (Practice Mode)
+    if (q.type === 'practice' && q.endTime && isAfter(now, new Date(q.endTime))) {
+      return { isLocked: true, reason: 'Đã hết thời hạn luyện tập đề thi này (Đã đóng băng)' };
+    }
+
     const qOrder = q.orderIndex ?? 1;
     
     // Đề có STT = 0 là đề tự do (không chặn ai và không bị ai chặn)
@@ -325,7 +344,7 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
   }
 
   const testQuizzes = filteredQuizzes.filter(q => q.type === 'test');
-  const practiceQuizzes = filteredQuizzes.filter(q => q.type === 'practice' && (!q.endTime || isBefore(now, new Date(q.endTime))));
+  const practiceQuizzes = filteredQuizzes.filter(q => q.type === 'practice');
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-10 pb-20">
@@ -460,7 +479,7 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
           {testQuizzes.length > 0 && (
               <div>
                   <div className="flex items-center gap-4 mb-8 px-2">
-                      <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Bài kiểm tra định kỳ</h2>
+                      <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Bài kiểm tra định kỳ (Làm bài)</h2>
                       <div className="h-px flex-1 bg-red-100"></div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -481,21 +500,62 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                                   isStarted = !isBefore(now, startX);
                                   isEnded = isAfter(now, globalDeadline);
                               }
+                          } else if (endY) {
+                              isEnded = isAfter(now, endY);
                           }
                           
-                          const alreadyDone = results.some(r => r.quizId === q.id);
+                          const attempts = results.filter(r => r.quizId === q.id);
+                          const attemptCount = attempts.length;
+                          const maxAtt = q.maxAttempts !== undefined ? q.maxAttempts : 1;
+                          const isUnlimited = maxAtt === 0;
+                          const isExhausted = !isUnlimited && attemptCount >= maxAtt;
+                          const canAttemptMore = isStarted && !isEnded && (isUnlimited || attemptCount < maxAtt);
+                          const bestScore = attemptCount > 0 ? Math.max(...attempts.map(r => r.score)) : null;
 
                           return (
-                              <div key={q.id} className={`bg-white rounded-[1.5rem] border p-6 flex flex-col transition-all border-b-4 ${alreadyDone ? 'border-emerald-500' : (isEnded ? 'border-slate-300 opacity-60' : (isStarted ? 'border-blue-600 shadow-xl' : 'border-slate-200 opacity-60 grayscale'))}`}>
-                                  <div className="flex justify-between items-start mb-3">
-                                      <div className={`px-3 py-1 rounded-xl text-[8px] font-black uppercase ${alreadyDone ? 'bg-emerald-50 text-emerald-600' : (isEnded ? 'bg-slate-100 text-slate-400' : (isStarted ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'))}`}>
-                                          {alreadyDone ? 'ĐÃ XONG' : (isEnded ? 'HẾT HẠN' : (isStarted ? (isFlexibleWindow ? 'ĐANG MỞ ĐỀ' : 'ĐANG THI') : 'CHỜ GIỜ'))}
+                              <div key={q.id} className={`bg-white rounded-[1.5rem] border p-6 flex flex-col transition-all border-b-4 ${isExhausted ? 'border-emerald-500 bg-emerald-50/10' : (isEnded ? 'border-slate-300 opacity-60' : (isStarted ? 'border-blue-600 shadow-xl' : 'border-slate-200 opacity-60 grayscale'))}`}>
+                                  <div className="flex justify-between items-start mb-3 gap-2">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                          {isExhausted ? (
+                                              <>
+                                                  <span className="px-2.5 py-1 rounded-xl text-[8px] font-black uppercase bg-emerald-100 text-emerald-700">
+                                                      ĐÃ XONG ({attemptCount}/{maxAtt})
+                                                  </span>
+                                                  <span className="px-2 py-0.5 rounded-lg text-[7px] font-black uppercase bg-slate-800 text-white tracking-wider">
+                                                      ĐÓNG BĂNG
+                                                  </span>
+                                              </>
+                                          ) : attemptCount > 0 ? (
+                                              <>
+                                                  <span className="px-2.5 py-1 rounded-xl text-[8px] font-black uppercase bg-blue-100 text-blue-700">
+                                                      ĐÃ LÀM {attemptCount}/{isUnlimited ? '∞' : maxAtt} LẦN
+                                                  </span>
+                                                  {!isUnlimited && (
+                                                      <span className="px-2 py-0.5 rounded-lg text-[7px] font-black uppercase bg-amber-500 text-white tracking-wider">
+                                                          CÒN {maxAtt - attemptCount} LƯỢT
+                                                      </span>
+                                                  )}
+                                              </>
+                                          ) : (
+                                              <span className={`px-2.5 py-1 rounded-xl text-[8px] font-black uppercase ${isEnded ? 'bg-slate-100 text-slate-400' : (isStarted ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600')}`}>
+                                                  {isEnded ? 'HẾT HẠN' : (isStarted ? (isFlexibleWindow ? 'ĐANG MỞ ĐỀ' : 'ĐANG THI') : 'CHỜ GIỜ')}
+                                              </span>
+                                          )}
                                       </div>
-                                      <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded-md">{q.durationMinutes} phút</span>
+                                      <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded-md shrink-0">{q.durationMinutes} phút</span>
                                   </div>
+
                                   {q.category && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1 italic truncate">{q.category}</p>}
                                   <h3 className="font-black text-slate-800 text-[13px] leading-tight mb-3 uppercase line-clamp-2 min-h-[2.5em]">{q.title}</h3>
                                   
+                                  {/* Thông tin số lượt cho phép */}
+                                  <div className="text-[9px] font-bold text-slate-500 mb-2 flex items-center justify-between bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                                      <span>Quy định làm bài:</span>
+                                      <span className="font-black text-slate-800">
+                                          {isUnlimited ? 'Không giới hạn lượt làm' : maxAtt === 1 ? '1 lần duy nhất (Đóng băng)' : `Tối đa ${maxAtt} lần làm`}
+                                      </span>
+                                  </div>
+
                                   {startX && (
                                       <div className="text-[10px] font-bold text-slate-600 mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
                                           {isFlexibleWindow && endY ? (
@@ -505,7 +565,7 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                                                       <span>Khung mở: <strong>{format(startX, 'HH:mm dd/MM')}</strong> → <strong>{format(endY, 'HH:mm dd/MM')}</strong></span>
                                                   </div>
                                                   <div className="text-[9px] text-slate-500 font-medium pl-4">
-                                                      ⚡ Vào bất kỳ lúc nào cũng được tính đủ {q.durationMinutes} phút làm bài.
+                                                      ⚡ Vào làm trong khung giờ mở phòng sẽ tính đủ {q.durationMinutes} phút.
                                                   </div>
                                               </>
                                           ) : (
@@ -517,17 +577,50 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                                       </div>
                                   )}
 
-                                  <div className="mt-auto">
-                                      {alreadyDone ? (
-                                          <button onClick={() => {
-                                              const res = results.find(r => r.quizId === q.id);
-                                              if (res) setSelectedResult({ result: res, quiz: q });
-                                          }} className="w-full py-2.5 rounded-xl border-2 border-slate-100 text-slate-600 font-black uppercase text-[9px] hover:bg-slate-50 flex items-center justify-center gap-2"><Eye size={12}/> Xem lại</button>
+                                  {/* Hiển thị điểm nếu đã làm */}
+                                  {attemptCount > 0 && bestScore !== null && (
+                                      <div className="mb-4 bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
+                                          <span className="text-[9px] font-black uppercase text-emerald-800">Điểm cao nhất:</span>
+                                          <span className="font-black text-emerald-600 text-sm">{bestScore.toFixed(2)}</span>
+                                      </div>
+                                  )}
+
+                                  <div className="mt-auto pt-2 space-y-2">
+                                      {isExhausted ? (
+                                          <button 
+                                              onClick={() => {
+                                                  const res = attempts[attempts.length - 1] || results.find(r => r.quizId === q.id);
+                                                  if (res) setSelectedResult({ result: res, quiz: q });
+                                              }} 
+                                              className="w-full py-2.5 rounded-xl border-2 border-emerald-200 bg-white text-emerald-700 font-black uppercase text-[9px] hover:bg-emerald-50 flex items-center justify-center gap-2 shadow-sm transition-all"
+                                          >
+                                              <Eye size={12}/> Xem lại bài làm ({attemptCount} lần)
+                                          </button>
+                                      ) : attemptCount > 0 ? (
+                                          <div className="space-y-2">
+                                              {canAttemptMore && (
+                                                  <button 
+                                                      onClick={() => handleStartQuiz(q)} 
+                                                      className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black uppercase text-[9px] shadow-lg hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                                                  >
+                                                      <Zap size={12}/> Làm tiếp (Lượt {attemptCount + 1}/{isUnlimited ? '∞' : maxAtt})
+                                                  </button>
+                                              )}
+                                              <button 
+                                                  onClick={() => {
+                                                      const res = attempts[attempts.length - 1] || results.find(r => r.quizId === q.id);
+                                                      if (res) setSelectedResult({ result: res, quiz: q });
+                                                  }} 
+                                                  className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-black uppercase text-[9px] hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all"
+                                              >
+                                                  <Eye size={11}/> Xem lại lượt trước
+                                              </button>
+                                          </div>
                                       ) : (
                                           <button 
-                                            disabled={!isStarted || isEnded}
-                                            onClick={() => isStarted && !isEnded ? handleStartQuiz(q) : null} 
-                                            className={`w-full py-2.5 rounded-xl font-black uppercase text-[9px] transition-all ${isStarted && !isEnded ? 'bg-slate-900 text-white shadow-xl hover:bg-black active:scale-95' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                              disabled={!isStarted || isEnded}
+                                              onClick={() => isStarted && !isEnded ? handleStartQuiz(q) : null} 
+                                              className={`w-full py-2.5 rounded-xl font-black uppercase text-[9px] transition-all ${isStarted && !isEnded ? 'bg-slate-900 text-white shadow-xl hover:bg-black active:scale-95' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
                                           >
                                               {isEnded ? 'Đã hết hạn vào thi' : (isStarted ? (isFlexibleWindow ? `Vào làm bài (${q.durationMinutes} phút)` : 'Vào thi ngay') : `Mở lúc: ${format(startX || now, 'HH:mm - dd/MM')}`)}
                                           </button>
@@ -542,12 +635,13 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
 
           <div>
               <div className="flex items-center gap-4 mb-8 px-2">
-                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Kho đề luyện tập</h2>
+                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Kho đề luyện tập (Xem ngay đáp án)</h2>
                   <div className="h-px flex-1 bg-slate-100"></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {practiceQuizzes.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map(q => {
                     const status = getQuizStatus(q);
+                    const isPracticeExpired = Boolean(q.endTime && isAfter(now, new Date(q.endTime)));
                     const qStats = (qid: string) => {
                       const attempts = results.filter(r => r.quizId === qid);
                       if (attempts.length === 0) return null;
@@ -555,10 +649,15 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                     };
                     const qs = qStats(q.id);
                     return (
-                      <div key={q.id} className={`bg-white rounded-[1.5rem] border border-slate-200 p-6 flex flex-col transition-all border-b-4 ${status.isLocked ? 'opacity-75 grayscale' : 'hover:shadow-xl hover:-translate-y-1 group hover:border-b-blue-600'}`}>
+                      <div key={q.id} className={`bg-white rounded-[1.5rem] border border-slate-200 p-6 flex flex-col transition-all border-b-4 ${status.isLocked || isPracticeExpired ? 'opacity-75 grayscale border-slate-300' : 'hover:shadow-xl hover:-translate-y-1 group hover:border-b-blue-600'}`}>
                         <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <div className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg font-black text-[8px] uppercase">{q.questions.length} câu</div>
+                            {isPracticeExpired ? (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-black text-[7px] uppercase">HẾT HẠN LUYỆN</span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg font-black text-[7px] uppercase">TỰ DO LUYỆN</span>
+                            )}
                             {q.disablePractice && (
                               <span className="px-2 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg font-black text-[7px] uppercase">ĐÃ TẮT LUYỆN</span>
                             )}
@@ -566,15 +665,22 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                           <span className="text-[9px] font-black text-slate-300 uppercase">{q.grade === 'all' ? 'Chung' : `Khối ${q.grade}`}</span>
                         </div>
                         {q.category && <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1 italic truncate">{q.category}</p>}
-                        <h3 className="font-black text-slate-800 text-[13px] leading-tight mb-4 group-hover:text-blue-600 uppercase flex items-center gap-2 line-clamp-2 min-h-[2.5em]">
-                            {status.isLocked && <Lock size={14} className="text-slate-400 shrink-0"/>}
+                        <h3 className="font-black text-slate-800 text-[13px] leading-tight mb-2 group-hover:text-blue-600 uppercase flex items-center gap-2 line-clamp-2 min-h-[2.5em]">
+                            {(status.isLocked || isPracticeExpired) && <Lock size={14} className="text-slate-400 shrink-0"/>}
                             {q.title}
                         </h3>
+
+                        {q.endTime && (
+                            <div className="text-[9px] font-bold text-slate-500 mb-3 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 flex items-center gap-1.5">
+                                <Calendar size={11} className="text-amber-500 shrink-0"/>
+                                <span>Hạn chót luyện: <strong>{format(new Date(q.endTime), 'HH:mm dd/MM/yyyy')}</strong></span>
+                            </div>
+                        )}
                         
-                        {status.isLocked ? (
+                        {status.isLocked || isPracticeExpired ? (
                             <div className="mt-auto bg-slate-50 p-3 rounded-xl border border-slate-200">
-                                <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">Đang khóa</p>
-                                <p className="text-[9px] font-bold text-slate-600 leading-tight">{status.reason}</p>
+                                <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">Đã đóng băng</p>
+                                <p className="text-[9px] font-bold text-slate-600 leading-tight">{status.reason || 'Đã hết thời hạn luyện tập đề thi này'}</p>
                             </div>
                         ) : (
                             <>
@@ -584,7 +690,7 @@ export default function StudentDashboard({ user, targetQuizId }: StudentDashboar
                                 </div>
                                 <div className={`grid gap-2 mt-auto ${q.disablePractice ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                   {!q.disablePractice && (
-                                    <button onClick={() => handleStartPractice(q)} className="flex items-center justify-center gap-1.5 bg-slate-900 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-black transition-all shadow-md"><Zap size={12}/> Luyện</button>
+                                    <button onClick={() => handleStartPractice(q)} className="flex items-center justify-center gap-1.5 bg-slate-900 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-black transition-all shadow-md" title="Nhấn từng câu để xem ngay đáp án & lời giải chi tiết"><Zap size={12}/> Luyện</button>
                                   )}
                                   <button onClick={() => handleStartQuiz(q)} className="flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-blue-700 transition-all">Làm bài</button>
                                 </div>
