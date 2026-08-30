@@ -103,6 +103,7 @@ export interface Quiz {
   createdByName?: string; // Họ tên Giáo viên tạo đề
   isSharedWithTeachers?: boolean; // Cho phép các giáo viên khác xem và khai thác đề thi này
   // Phân quyền giao đề theo Lớp học & Niên khóa
+  academicYear?: string; // Niên học áp dụng (VD: "2025-2026", "2026-2027")
   targetType?: 'all' | 'classes'; // 'all' (tất cả hs cùng khối) | 'classes' (chỉ giao cho các lớp chỉ định)
   assignedClassIds?: string[]; // IDs của các lớp được giao đề
   assignedClasses?: { id: string; name: string; academicYear?: string }[]; // Thông tin chi tiết lớp để hiển thị nhanh
