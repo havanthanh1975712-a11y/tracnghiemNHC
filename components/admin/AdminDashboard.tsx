@@ -164,11 +164,12 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [quizGrade, setQuizGrade] = useState<Grade>('12');
   const [quizAcademicYear, setQuizAcademicYear] = useState<string>(getCurrentAcademicYear());
   const [quizType, setQuizType] = useState<QuizType>('test');
+  const [quizMaxAttempts, setQuizMaxAttempts] = useState<number>(1);
   const [quizSubject, setQuizSubject] = useState<string>(() => currentUser?.subject || 'Toán');
   const [mySubject, setMySubject] = useState<string>(() => currentUser?.subject || 'Toán');
   const [isPublished, setIsPublished] = useState(false);
   const [isMonitored, setIsMonitored] = useState(false);
-  const [disablePractice, setDisablePractice] = useState(false);
+  const [showResultAnswers, setShowResultAnswers] = useState(true);
   const [isUnlisted, setIsUnlisted] = useState(false);
   const [isSharedWithTeachers, setIsSharedWithTeachers] = useState(false);
   const [targetType, setTargetType] = useState<'all' | 'classes'>('all');
@@ -537,9 +538,10 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   // Quiz Handlers
   const handleCreateQuiz = () => {
     setEditingQuizId(null); setQuizTitle(''); setQuizGrade('12'); setQuizType('test');
+    setQuizMaxAttempts(1);
     setQuizAcademicYear(getCurrentAcademicYear());
     setQuizSubject(mySubject || currentUser?.subject || 'Toán');
-    setIsPublished(false); setIsMonitored(false); setDisablePractice(false); setIsUnlisted(false);
+    setIsPublished(false); setIsMonitored(false); setShowResultAnswers(true); setIsUnlisted(false);
     setIsSharedWithTeachers(false);
     setTargetType(isSuperAdmin ? 'all' : 'classes'); setAssignedClassIds([]);
     setDuration(45); setOrderIndex(1); setCategory('');
@@ -578,9 +580,10 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
         setQuizAcademicYear(qData.academicYear || getQuizAcademicYear(qData));
         setQuizSubject(qData.subject || mySubject || currentUser?.subject || 'Toán');
         setQuizType(qData.type || 'test'); 
+        setQuizMaxAttempts(qData.maxAttempts !== undefined ? qData.maxAttempts : (qData.type === 'test' ? 1 : 0));
         setIsPublished(Boolean(qData.isPublished)); 
         setIsMonitored(Boolean(qData.isMonitored));
-        setDisablePractice(Boolean(qData.disablePractice));
+        setShowResultAnswers(qData.showResultAnswers !== false);
         setIsUnlisted(Boolean(qData.isUnlisted));
         setIsSharedWithTeachers(Boolean(qData.isSharedWithTeachers));
         setTargetType(isSuperAdmin ? (qData.targetType || 'all') : 'classes');
@@ -600,6 +603,8 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
         setQuizGrade(quiz.grade || '12');
         setQuizAcademicYear(quiz.academicYear || getQuizAcademicYear(quiz));
         setQuizSubject(quiz.subject || mySubject || currentUser?.subject || 'Toán');
+        setQuizMaxAttempts(quiz.maxAttempts !== undefined ? quiz.maxAttempts : (quiz.type === 'test' ? 1 : 0));
+        setShowResultAnswers(quiz.showResultAnswers !== false);
         setQuestions(quiz.questions || []);
         setIsEditingQuiz(true);
         setActiveTab('quizzes');
@@ -827,11 +832,12 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
       title: quizTitle, 
       grade: quizGrade, 
       type: quizType,
+      maxAttempts: quizType === 'test' ? (quizMaxAttempts ?? 1) : (quizMaxAttempts || 0),
       academicYear: quizAcademicYear || existingQuiz?.academicYear || getCurrentAcademicYear(),
       subject: finalQuizSubject,
       isPublished, 
       isMonitored, 
-      disablePractice,
+      showResultAnswers: quizType === 'test' ? (showResultAnswers !== false) : true,
       isUnlisted, 
       isSharedWithTeachers,
       createdBy: existingQuiz ? (existingQuiz.createdBy || currentUser?.id) : currentUser?.id,
@@ -1447,10 +1453,11 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                 <QuizEditor
                     editingId={editingQuizId} title={quizTitle} setTitle={setQuizTitle}
                     grade={quizGrade} setGrade={setQuizGrade} quizType={quizType} setQuizType={setQuizType}
+                    maxAttempts={quizMaxAttempts} setMaxAttempts={setQuizMaxAttempts}
                     academicYear={quizAcademicYear} setAcademicYear={setQuizAcademicYear}
                     subject={quizSubject} setSubject={setQuizSubject}
                     isPublished={isPublished} setIsPublished={setIsPublished} isMonitored={isMonitored} setIsMonitored={setIsMonitored}
-                    disablePractice={disablePractice} setDisablePractice={setDisablePractice}
+                    showResultAnswers={showResultAnswers} setShowResultAnswers={setShowResultAnswers}
                     isUnlisted={isUnlisted} setIsUnlisted={setIsUnlisted}
                     isSharedWithTeachers={isSharedWithTeachers} setIsSharedWithTeachers={setIsSharedWithTeachers}
                     targetType={targetType} setTargetType={setTargetType}
