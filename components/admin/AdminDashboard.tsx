@@ -17,6 +17,7 @@ import {
 import { generateQuizFromPrompt, parseQuestionsFromPDF, parseQuestionsFromText } from '../../services/gemini';
 import { normalizeFullText } from '../../services/vietnameseFixer';
 import { isSameSubject, STANDARD_SUBJECTS } from '../../services/subjectUtils';
+import { getCurrentAcademicYear, getQuizAcademicYear } from '../../services/academicUtils';
 import { Quiz, User, Result, Chapter, Question, QuestionType, Grade, QuizType, Role, ClassRoom } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -161,6 +162,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [quizTitle, setQuizTitle] = useState('');
   const [quizGrade, setQuizGrade] = useState<Grade>('12');
+  const [quizAcademicYear, setQuizAcademicYear] = useState<string>(getCurrentAcademicYear());
   const [quizType, setQuizType] = useState<QuizType>('test');
   const [quizSubject, setQuizSubject] = useState<string>(() => currentUser?.subject || 'Toán');
   const [mySubject, setMySubject] = useState<string>(() => currentUser?.subject || 'Toán');
@@ -226,6 +228,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
 
   // Filters
   const [qSearch, setQSearch] = useState('');
+  const [qAcademicYearFilter, setQAcademicYearFilter] = useState<string>(getCurrentAcademicYear());
   const [qSubjectFilter, setQSubjectFilter] = useState<string>('all');
   const [qGradeFilter, setQGradeFilter] = useState<Grade | 'all'>('all');
   const [qChapterFilter, setQChapterFilter] = useState('all');
@@ -534,6 +537,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
   // Quiz Handlers
   const handleCreateQuiz = () => {
     setEditingQuizId(null); setQuizTitle(''); setQuizGrade('12'); setQuizType('test');
+    setQuizAcademicYear(getCurrentAcademicYear());
     setQuizSubject(mySubject || currentUser?.subject || 'Toán');
     setIsPublished(false); setIsMonitored(false); setDisablePractice(false); setIsUnlisted(false);
     setIsSharedWithTeachers(false);
@@ -571,6 +575,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
         setEditingQuizId(qData.id); 
         setQuizTitle(qData.title || ''); 
         setQuizGrade(qData.grade || '12');
+        setQuizAcademicYear(qData.academicYear || getQuizAcademicYear(qData));
         setQuizSubject(qData.subject || mySubject || currentUser?.subject || 'Toán');
         setQuizType(qData.type || 'test'); 
         setIsPublished(Boolean(qData.isPublished)); 
@@ -593,6 +598,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
         setEditingQuizId(quiz.id);
         setQuizTitle(quiz.title || '');
         setQuizGrade(quiz.grade || '12');
+        setQuizAcademicYear(quiz.academicYear || getQuizAcademicYear(quiz));
         setQuizSubject(quiz.subject || mySubject || currentUser?.subject || 'Toán');
         setQuestions(quiz.questions || []);
         setIsEditingQuiz(true);
@@ -821,6 +827,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
       title: quizTitle, 
       grade: quizGrade, 
       type: quizType,
+      academicYear: quizAcademicYear || existingQuiz?.academicYear || getCurrentAcademicYear(),
       subject: finalQuizSubject,
       isPublished, 
       isMonitored, 
@@ -1440,6 +1447,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                 <QuizEditor
                     editingId={editingQuizId} title={quizTitle} setTitle={setQuizTitle}
                     grade={quizGrade} setGrade={setQuizGrade} quizType={quizType} setQuizType={setQuizType}
+                    academicYear={quizAcademicYear} setAcademicYear={setQuizAcademicYear}
                     subject={quizSubject} setSubject={setQuizSubject}
                     isPublished={isPublished} setIsPublished={setIsPublished} isMonitored={isMonitored} setIsMonitored={setIsMonitored}
                     disablePractice={disablePractice} setDisablePractice={setDisablePractice}
@@ -1510,6 +1518,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
                         qSearch={qSearch} setQSearch={setQSearch} qGradeFilter={qGradeFilter} setQGradeFilter={setQGradeFilter}
                         qChapterFilter={qChapterFilter} setQChapterFilter={setQChapterFilter}
                         qSubjectFilter={qSubjectFilter} setQSubjectFilter={setQSubjectFilter}
+                        qAcademicYearFilter={qAcademicYearFilter} setQAcademicYearFilter={setQAcademicYearFilter}
                     />
                 )}
               </div>
