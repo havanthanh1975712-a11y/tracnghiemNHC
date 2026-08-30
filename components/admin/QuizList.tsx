@@ -4,9 +4,12 @@ import { Quiz, Result, Grade, Chapter, ClassRoom, User } from '../../types';
 import { 
   Edit, Trash2, Eye, Users, Filter, FileText, ChevronDown, Link as LinkIcon, 
   EyeOff, ShieldCheck, GraduationCap, Share2, User as UserIcon, Lock, BookOpen,
-  Check, X, CheckSquare, Square, Info, Sparkles, Send, Layers, AlertCircle, PauseCircle
+  Check, X, CheckSquare, Square, Info, Sparkles, Send, Layers, AlertCircle, PauseCircle,
+  Calendar, CalendarDays, CheckCircle2
 } from 'lucide-react';
 import { isSameSubject, STANDARD_SUBJECTS, normalizeSubject, getDisplaySubject } from '../../services/subjectUtils';
+import { getCurrentAcademicYear, getQuizAcademicYear, getAcademicYearOptions } from '../../services/academicUtils';
+import { updateQuizAcademicYear } from '../../services/storage';
 
 interface QuizListProps {
     quizzes: Quiz[];
@@ -27,6 +30,8 @@ interface QuizListProps {
     setQChapterFilter: (val: string) => void;
     qSubjectFilter?: string;
     setQSubjectFilter?: (val: string) => void;
+    qAcademicYearFilter?: string;
+    setQAcademicYearFilter?: (val: string) => void;
 }
 
 const PAGE_SIZE = 12;
@@ -80,12 +85,38 @@ export default function QuizList({
     qSearch, setQSearch, qGradeFilter, setQGradeFilter,
     qChapterFilter, setQChapterFilter,
     qSubjectFilter: propSubjectFilter,
-    setQSubjectFilter: propSetSubjectFilter
+    setQSubjectFilter: propSetSubjectFilter,
+    qAcademicYearFilter: propAcademicYearFilter,
+    setQAcademicYearFilter: propSetAcademicYearFilter
 }: QuizListProps) {
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const [authorFilter, setAuthorFilter] = useState<string>('all'); // 'all' | 'mine' | 'shared' | specific_teacher_id
     const [quickFilter, setQuickFilter] = useState<QuickFilterType>('all');
     const [localSubjectFilter, setLocalSubjectFilter] = useState<string>('all');
+    const [localAcademicYearFilter, setLocalAcademicYearFilter] = useState<string>(getCurrentAcademicYear());
+
+    // Academic Year state & overrides
+    const qAcademicYearFilter = propAcademicYearFilter !== undefined ? propAcademicYearFilter : localAcademicYearFilter;
+    const setQAcademicYearFilter = propSetAcademicYearFilter !== undefined ? propSetAcademicYearFilter : setLocalAcademicYearFilter;
+
+    const [quizYearOverrides, setQuizYearOverrides] = useState<Record<string, string>>({});
+    const [updatingYearQuizId, setUpdatingYearQuizId] = useState<string | null>(null);
+    const [yearNotification, setYearNotification] = useState<{ id: string; year: string } | null>(null);
+
+    const handleSetAcademicYear = async (quizId: string, newYear: string) => {
+        setUpdatingYearQuizId(quizId);
+        try {
+            await updateQuizAcademicYear(quizId, newYear);
+            setQuizYearOverrides(prev => ({ ...prev, [quizId]: newYear }));
+            setYearNotification({ id: quizId, year: newYear });
+            setTimeout(() => setYearNotification(null), 3500);
+        } catch (e: any) {
+            console.error("Lỗi cập nhật niên học đề thi:", e);
+            alert("Lỗi khi lưu niên học: " + (e.message || 'Không xác định'));
+        } finally {
+            setUpdatingYearQuizId(null);
+        }
+    };
 
     const isSuperAdmin = currentUser?.role === 'superadmin' || 
       currentUser?.username?.toLowerCase() === 'admin' || 
@@ -191,6 +222,12 @@ export default function QuizList({
         return quizzes.filter(q => {
             const creator = teachers.find(t => t.id === q.createdBy);
             const effectiveSubject = q.subject || creator?.subject;
+            const effectiveYear = quizYearOverrides[q.id] || q.academicYear || getQuizAcademicYear(q);
+
+            // 0. Lọc theo Niên học
+            if (qAcademicYearFilter !== 'all' && effectiveYear !== qAcademicYearFilter) {
+                return false;
+            }
 
             // 1. Lọc theo Môn học (cho SuperAdmin)
             if (isSuperAdmin) {
@@ -236,7 +273,7 @@ export default function QuizList({
 
             return true;
         });
-    }, [quizzes, qSubjectFilter, qGradeFilter, qChapterFilter, qSearch, isSuperAdmin, authorFilter, currentUser, teachers]);
+    }, [quizzes, quizYearOverrides, qAcademicYearFilter, qSubjectFilter, qGradeFilter, qChapterFilter, qSearch, isSuperAdmin, authorFilter, currentUser, teachers]);
 
     const counts = useMemo(() => {
         let all = 0;
@@ -381,6 +418,23 @@ export default function QuizList({
                                 </div>
                             )
                         )}
+
+                        {/* Dropdown Niên học */}
+                        <div className="flex items-center gap-1.5 bg-sky-50 px-3 py-1 rounded-xl border border-sky-200 shadow-sm">
+                            <CalendarDays size={14} className="text-sky-600 shrink-0" />
+                            <select 
+                                className="bg-transparent py-2 text-[10px] font-black text-sky-900 uppercase outline-none cursor-pointer" 
+                                value={qAcademicYearFilter} 
+                                onChange={e => setQAcademicYearFilter(e.target.value)}
+                            >
+                                <option value="all">📅 TẤT CẢ NIÊN HỌC</option>
+                                {getAcademicYearOptions(quizzes.map(q => q.academicYear)).map(yr => (
+                                    <option key={yr} value={yr}>
+                                        📅 NH {yr} {yr === getCurrentAcademicYear() ? '(HIỆN HÀNH)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
 
                         {/* Dropdown Khối */}
                         <select 
@@ -676,9 +730,48 @@ export default function QuizList({
                                 </div>
                             </div>
                             
-                            <h3 className={`font-black text-sm mb-4 line-clamp-2 min-h-[40px] leading-tight uppercase transition-colors ${q.isPublished ? 'text-slate-800' : 'text-slate-500'}`}>
+                            <h3 className={`font-black text-sm mb-3 line-clamp-2 min-h-[40px] leading-tight uppercase transition-colors ${q.isPublished ? 'text-slate-800' : 'text-slate-500'}`}>
                                 {q.title}
                             </h3>
+
+                            {/* Academic Year badge & quick setter */}
+                            {(() => {
+                                const effectiveYear = quizYearOverrides[q.id] || q.academicYear || getQuizAcademicYear(q);
+                                return (
+                                    <div className="space-y-1.5 mb-3">
+                                        <div className="flex items-center justify-between gap-2 bg-slate-50/90 p-2 rounded-xl border border-slate-100">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <Calendar size={12} className="text-sky-600 shrink-0"/>
+                                                <span className="text-[9px] font-black text-sky-800 uppercase tracking-tight truncate">
+                                                    NH: {effectiveYear}
+                                                </span>
+                                            </div>
+                                            
+                                            {canManage && (
+                                                <select
+                                                    className="text-[9px] font-black py-1 px-2 bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-300 rounded-lg text-slate-700 outline-none cursor-pointer transition-colors"
+                                                    value={effectiveYear}
+                                                    title="Sét nhanh niên học cho đề này (Ví dụ: Chuyển sang NH 2026-2027 để dùng lại)"
+                                                    disabled={updatingYearQuizId === q.id}
+                                                    onChange={(e) => handleSetAcademicYear(q.id, e.target.value)}
+                                                >
+                                                    {getAcademicYearOptions([effectiveYear]).map(yr => (
+                                                        <option key={yr} value={yr}>
+                                                            Sét NH {yr} {yr === getCurrentAcademicYear() ? '★' : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
+                                        </div>
+
+                                        {yearNotification?.id === q.id && (
+                                            <div className="p-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[9px] font-black uppercase flex items-center justify-center gap-1 animate-fade-in">
+                                                <CheckCircle2 size={12}/> Đã chuyển sang NH {yearNotification.year}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                             
                             <div className="grid grid-cols-2 gap-3 mb-6">
                                 <div className={`${q.isPublished ? 'bg-white border-slate-100' : 'bg-slate-200/50 border-slate-200'} rounded-xl p-2 flex flex-col items-center justify-center border shadow-sm`}>
