@@ -25,12 +25,16 @@ interface QuizEditorProps {
     setSubject?: (val: string) => void;
     academicYear?: string;
     setAcademicYear?: (val: string) => void;
+    maxAttempts?: number;
+    setMaxAttempts?: (val: number) => void;
     quizType: QuizType;
     setQuizType: (val: QuizType) => void;
     isPublished: boolean;
     setIsPublished: (val: boolean) => void;
     isMonitored?: boolean;
     setIsMonitored: (val: boolean) => void;
+    showResultAnswers?: boolean;
+    setShowResultAnswers?: (val: boolean) => void;
     disablePractice?: boolean;
     setDisablePractice?: (val: boolean) => void;
     isUnlisted?: boolean;
@@ -1103,21 +1107,21 @@ export default function QuizEditor(props: QuizEditorProps) {
                 </div>
             )}
 
-            <div className="bg-white p-8 sm:p-10 rounded-[3.5rem] border-2 border-slate-50 shadow-sm space-y-8 relative overflow-hidden">
-                <div className={`absolute top-0 right-16 px-8 py-3 rounded-b-3xl font-black text-xs uppercase shadow-xl z-10 transition-colors ${totalPoints === 10 ? 'bg-emerald-600' : 'bg-orange-500'} text-white`}>
+            <div className="bg-white p-5 sm:p-7 rounded-3xl border-2 border-slate-100 shadow-sm space-y-5 relative overflow-hidden">
+                <div className={`absolute top-0 right-8 sm:right-12 px-5 py-2 rounded-b-2xl font-black text-[11px] uppercase shadow-md z-10 transition-colors ${totalPoints === 10 ? 'bg-emerald-600' : 'bg-orange-500'} text-white`}>
                     Tổng điểm đề: {totalPoints.toFixed(2)}đ
                 </div>
                 
-                {/* Khu vực Nhập Tiêu đề đề thi độc lập, rộng rãi */}
-                <div className="space-y-4 border-b-2 border-slate-100 pb-6 pt-2">
-                    <div className="space-y-2 bg-slate-50/80 p-5 sm:p-6 rounded-[2rem] border-2 border-slate-100 focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-md transition-all">
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                            <FileCode size={16} className="text-blue-600"/>
+                {/* Khu vực Nhập Tiêu đề đề thi độc lập, gọn gàng */}
+                <div className="space-y-3 border-b border-slate-100 pb-4 pt-1">
+                    <div className="space-y-1.5 bg-slate-50/90 p-3.5 sm:p-4 rounded-2xl border-2 border-slate-200/80 focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-sm transition-all">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                            <FileCode size={14} className="text-blue-600"/>
                             <span>TÊN ĐỀ THI / TIÊU ĐỀ BÀI KIỂM TRA</span>
                         </label>
                         <input 
                             type="text" 
-                            className="text-lg sm:text-2xl font-black outline-none bg-transparent w-full uppercase placeholder:text-slate-300 text-slate-900 transition-colors tracking-tight" 
+                            className="text-base sm:text-lg font-black outline-none bg-transparent w-full uppercase placeholder:text-slate-300 text-slate-900 transition-colors tracking-tight" 
                             placeholder="NHẬP TÊN ĐỀ THI (VD: KIỂM TRA CHƯƠNG I ĐẠO HÀM...)" 
                             value={props.title} 
                             onChange={e => props.setTitle(e.target.value)} 
@@ -1125,29 +1129,29 @@ export default function QuizEditor(props: QuizEditorProps) {
                         />
                     </div>
 
-                    {/* Thanh công cụ nhập câu hỏi & AI (Đặt gọn gàng ngay dưới Tiêu đề) */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <label className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl text-[11px] font-black uppercase cursor-pointer hover:bg-amber-600 transition-all shadow-md active:scale-95" title="Nhập trực tiếp file .json (Không tốn lượt AI)">
-                                <FileCode size={15}/> NHẬP TỪ JSON (0% AI)
+                    {/* Thanh công cụ nhập câu hỏi & AI gọn gàng */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <label className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase cursor-pointer hover:bg-amber-600 transition-all shadow-sm active:scale-95" title="Nhập trực tiếp file .json (Không tốn lượt AI)">
+                                <FileCode size={13}/> NHẬP JSON (0% AI)
                                 <input type="file" accept=".json,application/json" className="hidden" onChange={handleJsonFileSelect}/>
                             </label>
                             <button 
                                 onClick={() => setIsTextInputOpen(true)}
-                                className={`flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase hover:bg-black transition-all shadow-md active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase hover:bg-black transition-all shadow-sm active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                <TypeIcon size={15}/> NHẬP TỪ VĂN BẢN (AI)
+                                <TypeIcon size={13}/> NHẬP TEXT (AI)
                             </button>
-                            <label className={`flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-black uppercase cursor-pointer hover:bg-black transition-all shadow-md active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                <FileUp size={15}/> NHẬP TỪ PDF (AI)
+                            <label className={`flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase cursor-pointer hover:bg-black transition-all shadow-sm active:scale-95 ${props.isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                <FileUp size={13}/> NHẬP PDF (AI)
                                 <input type="file" accept="application/pdf" className="hidden" disabled={props.isAiLoading} onChange={props.onPdfExtract}/>
                             </label>
                             <button 
                                 onClick={props.onCleanLabels}
-                                className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl text-[11px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95"
+                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95"
                                 title="Xóa bỏ các nhãn A., B., a), b) dư thừa trong nội dung câu hỏi"
                             >
-                                <Zap size={15}/> DỌN DẸP NHÃN
+                                <Zap size={13}/> DỌN NHÃN
                             </button>
                         </div>
 
@@ -1155,28 +1159,29 @@ export default function QuizEditor(props: QuizEditorProps) {
                             <button
                                 type="button"
                                 onClick={() => setShowKeyInput(true)}
-                                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase border transition-all shadow-sm active:scale-95 ${
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase border transition-all shadow-sm active:scale-95 ${
                                     props.customApiKey 
                                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' 
                                         : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
                                 }`}
                                 title="Cấu hình Gemini API Key riêng"
                             >
-                                <Key size={14} className={props.customApiKey ? "text-emerald-600" : "text-slate-500"}/>
+                                <Key size={13} className={props.customApiKey ? "text-emerald-600" : "text-slate-500"}/>
                                 <span>{props.customApiKey ? "Key riêng: Đã bật" : "Gemini API Key"}</span>
                             </button>
                         )}
                     </div>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2 flex items-center gap-1.5">
-                            <BookOpen size={12} className="text-blue-500"/> Môn học
+                {/* Lưới thông số đề thi: Gọn gàng, rõ chữ */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 flex items-center gap-1">
+                            <BookOpen size={11} className="text-blue-500"/> Môn học
                         </label>
                         {props.isSuperAdmin ? (
                             <select 
-                                className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black uppercase bg-slate-50 focus:border-blue-300 outline-none cursor-pointer" 
+                                className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-black uppercase bg-slate-50 focus:border-blue-400 outline-none cursor-pointer" 
                                 value={props.subject || 'Toán'} 
                                 onChange={e => { 
                                     if (props.setSubject) props.setSubject(e.target.value); 
@@ -1188,28 +1193,28 @@ export default function QuizEditor(props: QuizEditorProps) {
                                 ))}
                             </select>
                         ) : (
-                            <div className="w-full border-2 border-blue-100 bg-blue-50/60 rounded-[1.5rem] p-4 flex items-center justify-between">
-                                <span className="text-xs font-black uppercase text-blue-700 tracking-wider">
+                            <div className="w-full border-2 border-blue-200 bg-blue-50/70 rounded-xl p-2.5 flex items-center justify-between">
+                                <span className="text-xs font-black uppercase text-blue-800 tracking-wide truncate">
                                     {props.subject || 'TOÁN'}
                                 </span>
-                                <span className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider">
-                                    MÔN DẠY
+                                <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase">
+                                    MÔN
                                 </span>
                             </div>
                         )}
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Khối lớp</label>
-                        <select className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black bg-slate-50 focus:border-blue-300 outline-none" value={props.grade} onChange={e => { props.setGrade(e.target.value as Grade); props.setCategory(''); }}>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Khối lớp</label>
+                        <select className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-black bg-slate-50 focus:border-blue-400 outline-none cursor-pointer" value={props.grade} onChange={e => { props.setGrade(e.target.value as Grade); props.setCategory(''); }}>
                             <option value="12">Khối 12</option>
                             <option value="11">Khối 11</option>
                             <option value="10">Khối 10</option>
                         </select>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Niên học</label>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Niên học</label>
                         <select 
-                            className="w-full border-2 border-blue-100 bg-blue-50/40 rounded-[1.5rem] p-4 text-xs font-black text-blue-700 focus:border-blue-400 outline-none cursor-pointer" 
+                            className="w-full border-2 border-blue-200 bg-blue-50/50 rounded-xl p-2.5 text-xs font-black text-blue-800 focus:border-blue-400 outline-none cursor-pointer" 
                             value={props.academicYear || getCurrentAcademicYear()} 
                             onChange={e => props.setAcademicYear && props.setAcademicYear(e.target.value)}
                         >
@@ -1218,30 +1223,59 @@ export default function QuizEditor(props: QuizEditorProps) {
                             ))}
                         </select>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Chương học</label>
-                        <select className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black uppercase bg-slate-50 focus:border-blue-300 outline-none" value={props.category} onChange={e => props.setCategory(e.target.value)}>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Chương học</label>
+                        <select className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-black uppercase bg-slate-50 focus:border-blue-400 outline-none cursor-pointer" value={props.category} onChange={e => props.setCategory(e.target.value)}>
                             <option value="">Chọn chương...</option>
                             {relevantChapters.map(c => <option key={c.id} value={c.name}>{(c.name || (c as any).title || "Chương chưa đặt tên").toUpperCase()}</option>)}
                         </select>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Hình thức</label>
-                        <select className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black bg-slate-50 focus:border-blue-300 outline-none" value={props.quizType} onChange={e => {
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Hình thức</label>
+                        <select className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-black bg-slate-50 focus:border-blue-400 outline-none cursor-pointer" value={props.quizType} onChange={e => {
                             const val = e.target.value as any;
                             props.setQuizType(val);
-                            if (val === 'practice') props.setIsMonitored(false);
+                            if (val === 'practice') {
+                                props.setIsMonitored(false);
+                                if (props.setMaxAttempts) props.setMaxAttempts(0);
+                            } else {
+                                if (props.setMaxAttempts && (props.maxAttempts === undefined || props.maxAttempts === 0)) {
+                                    props.setMaxAttempts(1);
+                                }
+                            }
                         }}>
-                            <option value="practice">Luyện tập (Tự do)</option>
-                            <option value="test">Kiểm tra (Hẹn giờ)</option>
+                            <option value="practice">📖 Luyện tập (Xem ngay đáp án)</option>
+                            <option value="test">✍️ Làm bài / Test (Chấm điểm)</option>
                         </select>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Thứ tự luyện</label>
+                    {props.quizType === 'test' && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-indigo-700 uppercase ml-1 flex items-center gap-1">
+                                <span>🎯 Số lần làm</span>
+                            </label>
+                            <select 
+                                className="w-full border-2 border-indigo-200 bg-indigo-50/60 rounded-xl p-2.5 text-xs font-black text-indigo-950 focus:border-indigo-400 outline-none cursor-pointer"
+                                value={props.maxAttempts ?? 1}
+                                onChange={e => {
+                                    if (props.setMaxAttempts) {
+                                        props.setMaxAttempts(parseInt(e.target.value));
+                                    }
+                                }}
+                            >
+                                <option value="1">1 lần (Nộp xong ĐÓNG BĂNG)</option>
+                                <option value="2">2 lần làm bài</option>
+                                <option value="3">3 lần làm bài</option>
+                                <option value="5">5 lần làm bài</option>
+                                <option value="0">Không giới hạn số lần</option>
+                            </select>
+                        </div>
+                    )}
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Thứ tự luyện</label>
                         <input 
                             type="number" 
                             min="0"
-                            className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black bg-slate-50 focus:border-blue-300 outline-none" 
+                            className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-black bg-slate-50 focus:border-blue-400 outline-none" 
                             value={props.orderIndex} 
                             onChange={e => {
                                 const val = parseInt(e.target.value);
@@ -1249,9 +1283,9 @@ export default function QuizEditor(props: QuizEditorProps) {
                             }} 
                         />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Thời lượng (phút)</label>
-                        <input type="number" className="w-full border-2 border-slate-100 rounded-[1.5rem] p-4 text-xs font-black bg-slate-50 focus:border-blue-300 outline-none" value={props.duration} onChange={e => props.setDuration(parseInt(e.target.value))} />
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Thời lượng (phút)</label>
+                        <input type="number" className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-xs font-black bg-slate-50 focus:border-blue-400 outline-none" value={props.duration} onChange={e => props.setDuration(parseInt(e.target.value))} />
                     </div>
                 </div>
 
@@ -1261,7 +1295,7 @@ export default function QuizEditor(props: QuizEditorProps) {
                         <div className="flex items-center gap-2">
                             <Zap size={18} className="text-blue-600" />
                             <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                                {props.quizType === 'test' ? 'Khung thời gian mở đề & Quy chế thi' : 'Thời hạn luyện tập'}
+                                {props.quizType === 'test' ? 'Khung thời gian mở phòng thi & Quy chế làm bài' : 'Thời hạn Luyện tập & Xem đáp án'}
                             </h4>
                         </div>
                         {props.quizType === 'test' && props.startTime && (
@@ -1331,7 +1365,7 @@ export default function QuizEditor(props: QuizEditorProps) {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-black text-blue-600 uppercase ml-2 flex items-center gap-1.5">
-                                        <span>📅 Giờ mở đề (Mốc X - Bắt đầu cho vào thi)</span>
+                                        <span>📅 Giờ mở phòng thi (Mốc X - Bắt đầu cho vào thi)</span>
                                     </label>
                                     <input 
                                         type="datetime-local" 
@@ -1346,7 +1380,7 @@ export default function QuizEditor(props: QuizEditorProps) {
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-black text-indigo-600 uppercase ml-2 flex items-center gap-1.5">
-                                        <span>⏳ Giờ đóng mở đề (Mốc Y - Hết hạn vào thi)</span>
+                                        <span>⏳ Giờ đóng phòng thi (Mốc Y - Hết hạn vào làm bài)</span>
                                     </label>
                                     <input 
                                         type="datetime-local" 
@@ -1355,6 +1389,23 @@ export default function QuizEditor(props: QuizEditorProps) {
                                         onChange={e => props.setEndTime(e.target.value)} 
                                     />
                                 </div>
+                            </div>
+
+                            {/* Banner hướng dẫn về số lần làm bài & cơ chế đóng băng */}
+                            <div className="p-4 rounded-2xl border bg-indigo-50/70 border-indigo-200 space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase">
+                                        Quy định số lượt làm: {(props.maxAttempts === 1 || props.maxAttempts === undefined) ? '1 LẦN DUY NHẤT' : props.maxAttempts > 1 ? `${props.maxAttempts} LẦN LÀM BÀI` : 'TỰ DO LƯỢT'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-indigo-950 leading-relaxed font-medium">
+                                    {(props.maxAttempts === 1 || props.maxAttempts === undefined) 
+                                        ? '🔒 Học sinh làm xong và bấm Nộp bài sẽ được báo ĐÃ LÀM XONG và ĐÓNG BĂNG đề thi ngay lập tức (không được làm lại).'
+                                        : props.maxAttempts > 1
+                                        ? `🔄 Học sinh được làm tối đa ${props.maxAttempts} lần trong khoảng thời gian mở phòng thi. Khi làm đủ ${props.maxAttempts} lần hoặc khi hết giờ mở phòng thi, đề thi sẽ tự động đóng băng.`
+                                        : '♾️ Học sinh có thể làm lại bài không giới hạn số lần cho đến khi kết thúc thời gian mở phòng thi.'
+                                    }
+                                </p>
                             </div>
 
                             {/* Banner giải thích quy tắc thời gian làm bài */}
@@ -1366,12 +1417,12 @@ export default function QuizEditor(props: QuizEditorProps) {
                                         </div>
                                         <div className="text-xs text-emerald-900 leading-relaxed">
                                             <p className="font-black uppercase text-[11px] text-emerald-800 mb-0.5">
-                                                Chế độ Khung giờ mở đề linh hoạt (Mở từ X đến Y)
+                                                Chế độ Khung giờ mở phòng thi linh hoạt (Mở từ X đến Y)
                                             </p>
                                             <p className="font-medium text-emerald-700">
                                                 Học sinh vào làm bài tại bất kỳ thời điểm nào trong khung giờ 
                                                 từ <b>{new Date(props.startTime).toLocaleString('vi-VN')}</b> đến <b>{new Date(props.endTime).toLocaleString('vi-VN')}</b> đều 
-                                                được <b>tính trọn vẹn {props.duration} phút làm bài</b> kể từ lúc bấm vào thi.
+                                                được <b>tính trọn vẹn {props.duration} phút làm bài</b> cho mỗi lượt làm bài.
                                             </p>
                                         </div>
                                     </div>
@@ -1385,7 +1436,7 @@ export default function QuizEditor(props: QuizEditorProps) {
                                                 Chế độ Thi đồng loạt (X = Y)
                                             </p>
                                             <p className="font-medium text-amber-700">
-                                                Đề thi mở vào lúc <b>{new Date(props.startTime).toLocaleString('vi-VN')}</b>. Tất cả học sinh 
+                                                Phòng thi mở vào lúc <b>{new Date(props.startTime).toLocaleString('vi-VN')}</b>. Tất cả học sinh 
                                                 phải <b>nộp bài đồng thời trước hạn chót</b> (sau {props.duration} phút). Nếu học sinh vào trễ sau giờ mở đề, thời gian làm bài sẽ bị rút ngắn tương ứng.
                                             </p>
                                         </div>
@@ -1393,21 +1444,28 @@ export default function QuizEditor(props: QuizEditorProps) {
                                 )
                             ) : (
                                 <p className="text-[11px] font-bold text-slate-400 italic">
-                                    💡 Để trống nếu muốn mở đề tự do bất kỳ lúc nào sau khi công khai.
+                                    💡 Để trống giờ mở/đóng nếu muốn mở phòng tự do bất kỳ lúc nào sau khi công khai.
                                 </p>
                             )}
                         </div>
                     ) : (
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-blue-600 uppercase ml-2">
-                                Hạn chót luyện tập (Để trống nếu mở vĩnh viễn)
-                            </label>
-                            <input 
-                                type="datetime-local" 
-                                className="w-full border-2 border-slate-200 rounded-[1.5rem] p-4 text-xs font-black bg-white focus:border-blue-300 outline-none" 
-                                value={props.endTime} 
-                                onChange={e => props.setEndTime(e.target.value)} 
-                            />
+                        <div className="space-y-4">
+                            <div className="p-4 rounded-2xl border bg-amber-50/70 border-amber-200">
+                                <p className="text-xs text-amber-950 leading-relaxed font-medium">
+                                    💡 <b>Chế độ Luyện tập:</b> Học sinh có thể nhấn vào từng câu hỏi để <b>xem ngay đáp án đúng và lời giải chi tiết</b> từng bước để ôn tập hiệu quả. Bạn có thể đặt Hạn chót luyện tập bên dưới để quản lý tiến độ.
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-blue-600 uppercase ml-2">
+                                    📅 Hạn chót luyện tập (Để trống nếu mở vĩnh viễn)
+                                </label>
+                                <input 
+                                    type="datetime-local" 
+                                    className="w-full border-2 border-slate-200 rounded-[1.5rem] p-4 text-xs font-black bg-white focus:border-blue-300 outline-none" 
+                                    value={props.endTime} 
+                                    onChange={e => props.setEndTime(e.target.value)} 
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
@@ -1546,74 +1604,132 @@ export default function QuizEditor(props: QuizEditorProps) {
                     )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-amber-600 uppercase ml-2 flex items-center gap-1"><Zap size={12}/> Chế độ Luyện tập</label>
+                {/* BẢNG NÚT CÀI ĐẶT 2 DÒNG NHỎ GỌN, RÕ CHỮ, HIGH CONTRAST */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2">
+                    {/* Nút Xem/Ẩn đáp án (Thay thế nút Tắt luyện) */}
+                    {props.quizType === 'test' ? (
                         <button 
                             type="button"
                             onClick={() => {
-                                if (props.setDisablePractice) {
-                                    props.setDisablePractice(!props.disablePractice);
+                                if (props.setShowResultAnswers) {
+                                    props.setShowResultAnswers(props.showResultAnswers === false ? true : false);
                                 }
                             }} 
-                            className={`w-full p-4 rounded-[1.5rem] font-black text-[10px] border-2 transition-all flex items-center justify-center gap-2 ${props.disablePractice ? 'bg-rose-50 text-rose-600 border-rose-200 shadow-lg shadow-rose-100' : 'bg-amber-50 text-amber-700 border-amber-200 shadow-lg shadow-amber-100'}`}
-                            title="Bật hoặc Tạm thời đóng băng nút Luyện tập (Quick Practice) của đề thi này"
+                            className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-95 ${
+                                props.showResultAnswers !== false 
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' 
+                                    : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                            }`}
+                            title="Bật/Tắt quyền xem đáp án đúng và lời giải chi tiết sau khi học sinh nộp bài hoặc sau khi hết giờ"
                         >
-                            {props.disablePractice ? <PauseCircle size={16}/> : <Zap size={16}/>}
-                            {props.disablePractice ? 'ĐÃ ĐÓNG BĂNG (TẮT)' : 'BẬT NÚT LUYỆN TẬP'}
+                            <div className="flex items-center gap-1 text-[10px] font-black uppercase">
+                                {props.showResultAnswers !== false ? <Eye size={14} className="text-emerald-700"/> : <EyeOff size={14} className="text-rose-700"/>}
+                                <span>ĐÁP ÁN BÀI THI</span>
+                            </div>
+                            <span className="text-[10px] font-black uppercase leading-tight">
+                                {props.showResultAnswers !== false ? 'CHO XEM ĐÁP ÁN' : 'ẨN ĐÁP ÁN (CHỈ ĐIỂM)'}
+                            </span>
                         </button>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-red-600 uppercase ml-2 flex items-center gap-1"><ShieldAlert size={12}/> Chế độ bảo mật</label>
-                        <button 
-                            type="button"
-                            onClick={() => props.setIsMonitored(!props.isMonitored)} 
-                            className={`w-full p-4 rounded-[1.5rem] font-black text-[10px] border-2 transition-all flex items-center justify-center gap-3 ${props.isMonitored ? 'bg-red-50 text-red-600 border-red-200 shadow-lg shadow-red-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
-                        >
-                            {props.isMonitored ? <ShieldCheck size={16}/> : <ShieldAlert size={16}/>}
-                            {props.isMonitored ? 'ĐÃ BẬT CHỐNG GIAN LẬN' : 'KHÔNG GIÁM SÁT'}
-                        </button>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-indigo-600 uppercase ml-2 flex items-center gap-1"><EyeOff size={12}/> Chế độ riêng tư</label>
-                        <button 
-                            type="button"
-                            onClick={() => props.setIsUnlisted(!props.isUnlisted)} 
-                            className={`w-full p-4 rounded-[1.5rem] font-black text-[10px] border-2 transition-all flex items-center justify-center gap-3 ${props.isUnlisted ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-lg shadow-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
-                        >
-                            {props.isUnlisted ? <LinkIcon size={16}/> : <Eye size={16}/>}
+                    ) : (
+                        <div className="p-3 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-900 flex flex-col items-center justify-center text-center gap-1 shadow-sm">
+                            <div className="flex items-center gap-1 text-[10px] font-black uppercase text-amber-700">
+                                <Zap size={14}/>
+                                <span>CHẾ ĐỘ LUYỆN</span>
+                            </div>
+                            <span className="text-[10px] font-black uppercase leading-tight">
+                                XEM NGAY ĐÁP ÁN
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Nút Chống gian lận */}
+                    <button 
+                        type="button"
+                        onClick={() => props.setIsMonitored(!props.isMonitored)} 
+                        className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-95 ${
+                            props.isMonitored 
+                                ? 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100' 
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                        title="Bật tính năng giám sát chuyển tab và chống gian lận trong lúc làm bài"
+                    >
+                        <div className="flex items-center gap-1 text-[10px] font-black uppercase">
+                            {props.isMonitored ? <ShieldCheck size={14} className="text-red-600"/> : <ShieldAlert size={14} className="text-slate-400"/>}
+                            <span>GIÁM SÁT THI</span>
+                        </div>
+                        <span className="text-[10px] font-black uppercase leading-tight">
+                            {props.isMonitored ? 'BẬT CHỐNG GIAN LẬN' : 'KHÔNG GIÁM SÁT'}
+                        </span>
+                    </button>
+
+                    {/* Nút Riêng tư */}
+                    <button 
+                        type="button"
+                        onClick={() => props.setIsUnlisted(!props.isUnlisted)} 
+                        className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-95 ${
+                            props.isUnlisted 
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100' 
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                        title="Chế độ chỉ làm qua link hoặc hiện công khai cho học sinh"
+                    >
+                        <div className="flex items-center gap-1 text-[10px] font-black uppercase">
+                            {props.isUnlisted ? <LinkIcon size={14} className="text-indigo-600"/> : <Eye size={14} className="text-slate-400"/>}
+                            <span>QUYỀN TRUY CẬP</span>
+                        </div>
+                        <span className="text-[10px] font-black uppercase leading-tight">
                             {props.isUnlisted ? 'CHỈ LÀM QUA LINK' : 'HIỆN CÔNG KHAI'}
-                        </button>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-blue-600 uppercase ml-2 flex items-center gap-1"><Users size={12}/> Chia sẻ GV cùng môn</label>
-                        <button 
-                            type="button"
-                            onClick={() => {
-                                if (props.setIsSharedWithTeachers) {
-                                    props.setIsSharedWithTeachers(!props.isSharedWithTeachers);
-                                }
-                            }} 
-                            className={`w-full p-4 rounded-[1.5rem] font-black text-[10px] border-2 transition-all flex items-center justify-center gap-2 ${props.isSharedWithTeachers ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-lg shadow-blue-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
-                            title="Chia sẻ đề thi này cho các giáo viên cùng tổ bộ môn tham khảo"
-                        >
-                            <Users size={16}/>
-                            {props.isSharedWithTeachers ? 'ĐÃ CHIA SẺ (CÙNG MÔN)' : 'ĐỀ RIÊNG CỦA TÔI'}
-                        </button>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Trạng thái phát hành</label>
-                        <button 
-                            type="button"
-                            onClick={() => props.setIsPublished(!props.isPublished)} 
-                            className={`w-full p-4 rounded-[1.5rem] font-black text-[10px] border-2 transition-all shadow-md ${props.isPublished ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-200 text-slate-500 border-slate-300'}`}
-                        >
+                        </span>
+                    </button>
+
+                    {/* Nút Chia sẻ cùng môn */}
+                    <button 
+                        type="button"
+                        onClick={() => {
+                            if (props.setIsSharedWithTeachers) {
+                                props.setIsSharedWithTeachers(!props.isSharedWithTeachers);
+                            }
+                        }} 
+                        className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-95 ${
+                            props.isSharedWithTeachers 
+                                ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100' 
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                        title="Chia sẻ đề thi này cho các giáo viên cùng tổ bộ môn tham khảo và giao lớp"
+                    >
+                        <div className="flex items-center gap-1 text-[10px] font-black uppercase">
+                            <Users size={14} className={props.isSharedWithTeachers ? "text-blue-600" : "text-slate-400"}/>
+                            <span>CHIA SẺ GV</span>
+                        </div>
+                        <span className="text-[10px] font-black uppercase leading-tight">
+                            {props.isSharedWithTeachers ? 'CHIA SẺ CÙNG MÔN' : 'ĐỀ RIÊNG CỦA TÔI'}
+                        </span>
+                    </button>
+
+                    {/* Nút Trạng thái phát hành */}
+                    <button 
+                        type="button"
+                        onClick={() => props.setIsPublished(!props.isPublished)} 
+                        className={`col-span-2 sm:col-span-1 p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-1 shadow-sm active:scale-95 ${
+                            props.isPublished 
+                                ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700' 
+                                : 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'
+                        }`}
+                        title="Chuyển giữa chế độ Công khai (cho học sinh thấy) hoặc Bản nháp ẩn"
+                    >
+                        <div className="flex items-center gap-1 text-[10px] font-black uppercase">
+                            <CheckCircle2 size={14} className={props.isPublished ? "text-white" : "text-slate-400"}/>
+                            <span>TRẠNG THÁI</span>
+                        </div>
+                        <span className="text-[10px] font-black uppercase leading-tight">
                             {props.isPublished ? 'ĐÃ CÔNG KHAI' : 'BẢN NHÁP (ẨN)'}
-                        </button>
-                    </div>
+                        </span>
+                    </button>
                 </div>
 
-                <button onClick={props.onSave} className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-black uppercase text-sm flex items-center justify-center gap-4 hover:bg-black transition-all shadow-2xl active:scale-[0.98] mt-6"><Save size={24}/> LƯU TOÀN BỘ ĐỀ THI VÀO DATABASE</button>
+                <button onClick={props.onSave} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs sm:text-sm flex items-center justify-center gap-3 hover:bg-black transition-all shadow-xl active:scale-[0.98] mt-4">
+                    <Save size={18}/> LƯU TOÀN BỘ ĐỀ THI VÀO DATABASE
+                </button>
             </div>
 
             <QuestionSection sectionTitle="PHẦN I. TRẮC NGHIỆM NHIỀU LỰA CHỌN" type="mcq" questions={props.questions} setQuestions={props.setQuestions} onUploadImage={props.onUploadImage} uploadingId={props.uploadingId} onOpenBank={props.onOpenBank} />
