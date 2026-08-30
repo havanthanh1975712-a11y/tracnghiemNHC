@@ -22,6 +22,7 @@ import { db, storage } from './firebase';
 import { User, Quiz, Result, Chapter, Question, ExamSession, PublishedResult, Grade, ClassRoom } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { isSameSubject } from './subjectUtils';
+import { getCurrentAcademicYear, getQuizAcademicYear } from './academicUtils';
 
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -59,8 +60,17 @@ export interface DailyFirestoreStats {
   lastUpdated: string;
 }
 
+const notifyUsageUpdate = (stats: DailyFirestoreStats) => {
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('firestore-usage-updated', { detail: stats }));
+    }
+  } catch {}
+};
+
 export const getDailyFirestoreStats = (): DailyFirestoreStats => {
-  const today = new Date().toISOString().split('T')[0];
+  // Use local date string YYYY-MM-DD so reset corresponds to midnight in user's timezone
+  const today = new Date().toLocaleDateString('en-CA');
   try {
     const raw = localStorage.getItem('eduquiz_firestore_daily_stats');
     if (raw) {
@@ -88,6 +98,7 @@ export const trackFirestoreRead = (collectionName: string, count: number = 1) =>
     stats.readsByCollection[collectionName] = (stats.readsByCollection[collectionName] || 0) + count;
     stats.lastUpdated = new Date().toISOString();
     localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(stats));
+    notifyUsageUpdate(stats);
   } catch {}
 };
 
@@ -98,6 +109,7 @@ export const trackFirestoreWrite = (collectionName: string, count: number = 1) =
     stats.totalWrites += count;
     stats.lastUpdated = new Date().toISOString();
     localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(stats));
+    notifyUsageUpdate(stats);
   } catch {}
 };
 
@@ -108,11 +120,12 @@ export const trackFirestoreDelete = (collectionName: string, count: number = 1) 
     stats.totalDeletes += count;
     stats.lastUpdated = new Date().toISOString();
     localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(stats));
+    notifyUsageUpdate(stats);
   } catch {}
 };
 
 export const resetDailyFirestoreStats = (): DailyFirestoreStats => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const fresh: DailyFirestoreStats = {
     date: today,
     totalReads: 0,
@@ -123,6 +136,7 @@ export const resetDailyFirestoreStats = (): DailyFirestoreStats => {
   };
   try {
     localStorage.setItem('eduquiz_firestore_daily_stats', JSON.stringify(fresh));
+    notifyUsageUpdate(fresh);
   } catch {}
   return fresh;
 };
@@ -133,6 +147,7 @@ export const testFirebaseConnection = async (): Promise<{ success: boolean; mess
   try {
     const q = query(collection(db, 'users'), limit(1));
     const snapshot = await getDocs(q);
+    trackFirestoreRead('users', snapshot.docs.length || 1);
     return { success: true, message: `Kết nối Firebase Cloud Firestore thành công. (${snapshot.size} bản ghi mẫu)` };
   } catch (e: any) {
     console.error("Lỗi Exception kết nối Firebase:", e);
@@ -167,6 +182,7 @@ export const getResultsMetadataPage = async (
     }
 
     const totalSnapshot = await getDocs(query(qRef, ...constraints));
+    trackFirestoreRead('results', totalSnapshot.docs.length);
     let allResults = totalSnapshot.docs.map(d => {
       const row = d.data();
       return (row.data as Result) || ({ ...row, id: d.id } as Result);
@@ -208,6 +224,7 @@ export const getResultsMetadata = async (quizId?: string, maxRecords: number = 1
     }
 
     const snapshot = await getDocs(q);
+    trackFirestoreRead('results', snapshot.docs.length);
     return snapshot.docs.map(d => {
       const row = d.data();
       const res = (row.data as Result) || (row as Result);
@@ -233,6 +250,7 @@ export const getResultsCount = async (quizId?: string): Promise<number> => {
       q = query(qRef, where('quizId', '==', quizId));
     }
     const snapshot = await getCountFromServer(q);
+    trackFirestoreRead('results', 1);
     return snapshot.data().count;
   } catch (e) {
     return 0;
@@ -248,6 +266,7 @@ export const getResults = async (quizId?: string, maxRecords: number = 5000): Pr
       q = query(qRef, where('quizId', '==', quizId), limit(maxRecords));
     }
     const snapshot = await getDocs(q);
+    trackFirestoreRead('results', snapshot.docs.length);
     return snapshot.docs.map(d => {
       const row = d.data();
       return (row.data as Result) || (row as Result);
@@ -263,6 +282,7 @@ export const getResultsForStudent = async (studentId: string, studentCode?: stri
     const qRef = collection(db, 'results');
     const q = query(qRef, where('studentId', '==', studentId), limit(500));
     const snapshot = await getDocs(q);
+    trackFirestoreRead('results', snapshot.docs.length);
     let results = snapshot.docs.map(d => {
       const row = d.data();
       return (row.data as Result) || (row as Result);
@@ -272,6 +292,7 @@ export const getResultsForStudent = async (studentId: string, studentCode?: stri
       const code = studentCode.trim().toUpperCase();
       const qCode = query(qRef, where('studentCode', '==', code), limit(500));
       const codeSnapshot = await getDocs(qCode);
+      trackFirestoreRead('results', codeSnapshot.docs.length);
       const codeResults = codeSnapshot.docs.map(d => {
         const row = d.data();
         return (row.data as Result) || (row as Result);
@@ -300,6 +321,7 @@ export const verifyResultExists = async (id: string): Promise<boolean> => {
   if (!db) return false;
   try {
     const docSnap = await getDoc(doc(db, 'results', id));
+    trackFirestoreRead('results', 1);
     return docSnap.exists();
   } catch (e) {
     return false;
@@ -310,6 +332,7 @@ export const getResultById = async (id: string): Promise<Result | null> => {
   if (!db) return null;
   try {
     const docSnap = await getDoc(doc(db, 'results', id));
+    trackFirestoreRead('results', 1);
     if (!docSnap.exists()) return null;
     const data = docSnap.data();
     return (data.data as Result) || (data as Result);
@@ -332,11 +355,13 @@ export const saveResult = async (result: Result): Promise<void> => {
     data: cleanUndefined(result)
   };
   await setDoc(doc(db, 'results', result.id), cleanUndefined(payload));
+  trackFirestoreWrite('results', 1);
 };
 
 export const deleteResult = async (id: string): Promise<void> => {
   if (db) {
     await deleteDoc(doc(db, 'results', id));
+    trackFirestoreDelete('results', 1);
   }
 };
 
@@ -344,6 +369,7 @@ export const updateResultCode = async (id: string, code: string): Promise<void> 
   if (!db) return;
   const docRef = doc(db, 'results', id);
   const docSnap = await getDoc(docRef);
+  trackFirestoreRead('results', 1);
   if (!docSnap.exists()) return;
   const currentData = docSnap.data();
   const resData = { ...((currentData.data as Result) || currentData), studentCode: code.trim().toUpperCase() };
@@ -351,6 +377,7 @@ export const updateResultCode = async (id: string, code: string): Promise<void> 
     studentCode: code.trim().toUpperCase(),
     data: cleanUndefined(resData)
   });
+  trackFirestoreWrite('results', 1);
 };
 
 // --- Users ---
@@ -363,6 +390,7 @@ export const getUsersPage = async (
   try {
     const qRef = collection(db, 'users');
     const snapshot = await getDocs(qRef);
+    trackFirestoreRead('users', snapshot.docs.length);
     let allUsers = snapshot.docs.map(d => {
       const row = d.data();
       const parsed = (row.data as User) || ({ ...row, id: d.id } as User);
@@ -402,6 +430,7 @@ export const getUsers = async (): Promise<User[]> => {
   if (!db) return [];
   try {
     const snapshot = await getDocs(collection(db, 'users'));
+    trackFirestoreRead('users', snapshot.docs.length);
     return snapshot.docs.map(d => {
       const row = d.data();
       const parsed = (row.data as User) || ({ ...row, id: d.id } as User);
@@ -442,6 +471,7 @@ export const saveUser = async (user: User): Promise<void> => {
     data: cleanUndefined(user)
   };
   await setDoc(doc(db, 'users', user.id), cleanUndefined(payload), { merge: true });
+  trackFirestoreWrite('users', 1);
 };
 
 export const saveUsersBatch = async (users: User[]): Promise<void> => {
@@ -477,6 +507,7 @@ export const saveUsersBatch = async (users: User[]): Promise<void> => {
       batch.set(userRef, cleanUndefined(payload), { merge: true });
     }
     await batch.commit();
+    trackFirestoreWrite('users', chunk.length);
   }
 };
 
@@ -518,6 +549,7 @@ export const getTeachers = async (forceRefresh: boolean = false): Promise<User[]
     // Targeted query for only teacher/admin accounts rather than scanning entire collection
     const q = query(qRef, where('role', 'in', ['admin', 'superadmin', 'teacher']));
     const snapshot = await getDocs(q);
+    trackFirestoreRead('users', snapshot.docs.length);
     
     let teachers: User[] = [];
     if (!snapshot.empty) {
@@ -528,6 +560,7 @@ export const getTeachers = async (forceRefresh: boolean = false): Promise<User[]
     } else {
       // Fallback in case indexed query is empty
       const allSnap = await getDocs(query(qRef, limit(50)));
+      trackFirestoreRead('users', allSnap.docs.length);
       teachers = allSnap.docs
         .map(d => {
           const row = d.data();
@@ -559,6 +592,7 @@ export const saveTeacher = async (teacher: User): Promise<void> => {
       // 1. Cập nhật các Lớp học do GV tạo (createdBy == teacher.id)
       const classesQuery = query(collection(db, 'classes'), where('createdBy', '==', teacher.id));
       const classesSnap = await getDocs(classesQuery);
+      trackFirestoreRead('classes', classesSnap.docs.length);
       if (!classesSnap.empty) {
         const batch = writeBatch(db);
         classesSnap.forEach(classDoc => {
@@ -568,11 +602,13 @@ export const saveTeacher = async (teacher: User): Promise<void> => {
           });
         });
         await batch.commit();
+        trackFirestoreWrite('classes', classesSnap.docs.length);
       }
 
       // 2. Cập nhật các Đề thi do GV tạo (createdBy == teacher.id)
       const quizMetaQuery = query(collection(db, 'quizzes_metadata'), where('createdBy', '==', teacher.id));
       const quizMetaSnap = await getDocs(quizMetaQuery);
+      trackFirestoreRead('quizzes_metadata', quizMetaSnap.docs.length);
       if (!quizMetaSnap.empty) {
         const batch = writeBatch(db);
         quizMetaSnap.forEach(qDoc => {
@@ -582,6 +618,7 @@ export const saveTeacher = async (teacher: User): Promise<void> => {
           });
         });
         await batch.commit();
+        trackFirestoreWrite('quizzes_metadata', quizMetaSnap.docs.length);
       }
     } catch (err) {
       console.warn("Lỗi đồng bộ tên giáo viên sang các lớp/đề thi:", err);
@@ -608,6 +645,7 @@ export const addPointsToUser = async (userId: string, points: number): Promise<v
   try {
     const docRef = doc(db, 'users', userId);
     const docSnap = await getDoc(docRef);
+    trackFirestoreRead('users', 1);
     if (docSnap.exists()) {
       const raw = docSnap.data();
       const userData: User = raw.data || raw;
@@ -616,6 +654,7 @@ export const addPointsToUser = async (userId: string, points: number): Promise<v
         points: updatedUser.points,
         data: updatedUser
       });
+      trackFirestoreWrite('users', 1);
     }
   } catch (e) {
     console.error("Lỗi addPointsToUser:", e);
@@ -628,18 +667,10 @@ export const findUserByStudentCode = async (code: string): Promise<User | undefi
     const targetCode = code.trim().toUpperCase();
     const q = query(collection(db, 'users'), where('studentCode', '==', targetCode), limit(1));
     const snapshot = await getDocs(q);
+    trackFirestoreRead('users', snapshot.docs.length || 1);
     if (!snapshot.empty) {
       const d = snapshot.docs[0].data();
       return (d.data as User) || ({ ...d, id: snapshot.docs[0].id } as User);
-    }
-
-    // Fallback: search all in case studentCode was nested in data
-    const allSnapshot = await getDocs(collection(db, 'users'));
-    for (const docItem of allSnapshot.docs) {
-      const u = (docItem.data().data as User) || (docItem.data() as User);
-      if (u.studentCode && u.studentCode.trim().toUpperCase() === targetCode) {
-        return u;
-      }
     }
     return undefined;
   } catch (e) {
@@ -656,37 +687,20 @@ export const findUser = async (username: string): Promise<User | undefined> => {
     // 1. Direct query by lowercase username
     const q = query(collection(db, 'users'), where('username', '==', targetUser), limit(1));
     const snapshot = await getDocs(q);
+    trackFirestoreRead('users', snapshot.docs.length || 1);
     if (!snapshot.empty) {
       const d = snapshot.docs[0].data();
       return (d.data as User) || ({ ...d, id: snapshot.docs[0].id } as User);
     }
 
     // 2. Direct query by original username (case as typed)
-    const qOriginal = query(collection(db, 'users'), where('username', '==', username.trim()), limit(1));
-    const snapOriginal = await getDocs(qOriginal);
-    if (!snapOriginal.empty) {
-      const d = snapOriginal.docs[0].data();
-      return (d.data as User) || ({ ...d, id: snapOriginal.docs[0].id } as User);
-    }
-
-    // 3. Fallback: scan all users in collection in case username is stored with mixed casing, in data subfield, or email
-    const allSnapshot = await getDocs(collection(db, 'users'));
-    for (const docItem of allSnapshot.docs) {
-      const row = docItem.data();
-      const u = (row.data as User) || (row as User);
-      const docUsername = (u.username || row.username || '').trim().toLowerCase();
-      const docId = docItem.id.toLowerCase();
-      const docEmail = (u.email || row.email || '').trim().toLowerCase();
-      
-      if (docUsername === targetUser || docId === targetUser || (docEmail && docEmail === targetUser)) {
-        return {
-          ...u,
-          id: docItem.id,
-          username: u.username || row.username || docItem.id,
-          fullName: u.fullName || row.fullName || 'Giáo viên',
-          role: u.role || row.role || 'admin',
-          password: u.password || row.password || '123'
-        };
+    if (username.trim() !== targetUser) {
+      const qOriginal = query(collection(db, 'users'), where('username', '==', username.trim()), limit(1));
+      const snapOriginal = await getDocs(qOriginal);
+      trackFirestoreRead('users', snapOriginal.docs.length || 1);
+      if (!snapOriginal.empty) {
+        const d = snapOriginal.docs[0].data();
+        return (d.data as User) || ({ ...d, id: snapOriginal.docs[0].id } as User);
       }
     }
 
@@ -703,14 +717,17 @@ export const deleteUser = async (id: string): Promise<void> => {
     // 1. Delete associated results
     const resultsQuery = query(collection(db, 'results'), where('studentId', '==', id));
     const resultsSnap = await getDocs(resultsQuery);
+    trackFirestoreRead('results', resultsSnap.docs.length);
     if (!resultsSnap.empty) {
       const batch = writeBatch(db);
       resultsSnap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
+      trackFirestoreDelete('results', resultsSnap.docs.length);
     }
 
     // 2. Delete user
     await deleteDoc(doc(db, 'users', id));
+    trackFirestoreDelete('users', 1);
   } catch (e) {
     console.error("Lỗi deleteUser:", e);
     throw e;
@@ -722,10 +739,12 @@ export const changePassword = async (userId: string, newPassword: string): Promi
   try {
     let userRef = doc(db, 'users', userId);
     let docSnap = await getDoc(userRef);
+    trackFirestoreRead('users', 1);
     
     if (!docSnap.exists()) {
       // Find document by id or username if doc ID didn't match directly
       const allSnapshot = await getDocs(collection(db, 'users'));
+      trackFirestoreRead('users', allSnapshot.docs.length);
       const found = allSnapshot.docs.find(d => {
         const row = d.data();
         const u = (row.data as User) || (row as User);
@@ -750,6 +769,7 @@ export const changePassword = async (userId: string, newPassword: string): Promi
       password: newPassword,
       data: updatedUser
     }), { merge: true });
+    trackFirestoreWrite('users', 1);
 
     return true;
   } catch (e) {
@@ -759,65 +779,53 @@ export const changePassword = async (userId: string, newPassword: string): Promi
 };
 
 // --- Quizzes ---
-export const getQuizzesMetadataPage = async (
-  page: number, 
-  pageSize: number = 20, 
-  grade?: Grade
-): Promise<{ data: Quiz[]; total: number }> => {
-  if (!db) return { data: [], total: 0 };
-  try {
-    const qRef = collection(db, 'quizzes');
-    let q = query(qRef);
+export const getQuizzesMetadata = async (
+  grade?: Grade, 
+  academicYear?: string, 
+  forceRefresh: boolean = false
+): Promise<Quiz[]> => {
+  const now = Date.now();
+  if (!forceRefresh && memoryCache.quizzesMeta && memoryCache.quizzesMeta.expires > now) {
+    let cached = memoryCache.quizzesMeta.data;
     if (grade && grade !== 'all') {
-      q = query(qRef, where('grade', 'in', [grade, 'all']));
+      cached = cached.filter(q => q.grade === grade || q.grade === 'all');
     }
-    const snapshot = await getDocs(q);
-    let allQuizzes = snapshot.docs.map(d => {
-      const row = d.data();
-      const quiz = (row.data as Quiz) || (row as Quiz);
-      return {
-        ...quiz,
-        id: d.id,
-        grade: row.grade || quiz.grade,
-        attemptCount: quiz.attemptCount || 0,
-        questionCount: quiz.questionCount || (quiz.questions ? quiz.questions.length : 0),
-        questions: [] // do not load full questions in metadata list
-      };
-    });
-
-    allQuizzes.sort((a, b) => {
-      const tA = new Date(a.createdAt || 0).getTime();
-      const tB = new Date(b.createdAt || 0).getTime();
-      return tB - tA;
-    });
-
-    const total = allQuizzes.length;
-    const from = (page - 1) * pageSize;
-    const paged = allQuizzes.slice(from, from + pageSize);
-
-    return { data: paged, total };
-  } catch (e) {
-    console.error("Lỗi getQuizzesMetadataPage:", e);
-    return { data: [], total: 0 };
+    if (academicYear && academicYear !== 'all') {
+      cached = cached.filter(q => getQuizAcademicYear(q) === academicYear);
+    }
+    return cached;
   }
-};
 
-export const getQuizzesMetadata = async (grade?: Grade): Promise<Quiz[]> => {
-  if (!db) return [];
+  if (!db) {
+    try {
+      const local = localStorage.getItem('eduquiz_quizzes_meta_cache');
+      if (local) {
+        let parsed: Quiz[] = JSON.parse(local);
+        if (grade && grade !== 'all') {
+          parsed = parsed.filter(q => q.grade === grade || q.grade === 'all');
+        }
+        if (academicYear && academicYear !== 'all') {
+          parsed = parsed.filter(q => getQuizAcademicYear(q) === academicYear);
+        }
+        return parsed;
+      }
+    } catch {}
+    return [];
+  }
+
   try {
     const qRef = collection(db, 'quizzes');
-    let q = query(qRef);
-    if (grade && grade !== 'all') {
-      q = query(qRef, where('grade', 'in', [grade, 'all']));
-    }
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(qRef);
+    trackFirestoreRead('quizzes', snapshot.docs.length);
     const quizzes = snapshot.docs.map(d => {
       const row = d.data();
       const quiz = (row.data as Quiz) || (row as Quiz);
+      const computedYear = row.academicYear || quiz.academicYear || getQuizAcademicYear(quiz);
       return {
         ...quiz,
         id: d.id,
         grade: row.grade || quiz.grade,
+        academicYear: computedYear,
         attemptCount: quiz.attemptCount || 0,
         questionCount: quiz.questionCount || (quiz.questions ? quiz.questions.length : 0),
         questions: []
@@ -830,11 +838,50 @@ export const getQuizzesMetadata = async (grade?: Grade): Promise<Quiz[]> => {
       return tB - tA;
     });
 
-    return quizzes;
+    memoryCache.quizzesMeta = { data: quizzes, expires: now + 5 * 60 * 1000 };
+    try {
+      localStorage.setItem('eduquiz_quizzes_meta_cache', JSON.stringify(quizzes));
+    } catch {}
+
+    let filtered = quizzes;
+    if (grade && grade !== 'all') {
+      filtered = filtered.filter(q => q.grade === grade || q.grade === 'all');
+    }
+    if (academicYear && academicYear !== 'all') {
+      filtered = filtered.filter(q => getQuizAcademicYear(q) === academicYear);
+    }
+    return filtered;
   } catch (e) {
     console.error("Lỗi getQuizzesMetadata:", e);
+    try {
+      const local = localStorage.getItem('eduquiz_quizzes_meta_cache');
+      if (local) {
+        let parsed: Quiz[] = JSON.parse(local);
+        if (grade && grade !== 'all') {
+          parsed = parsed.filter(q => q.grade === grade || q.grade === 'all');
+        }
+        if (academicYear && academicYear !== 'all') {
+          parsed = parsed.filter(q => getQuizAcademicYear(q) === academicYear);
+        }
+        return parsed;
+      }
+    } catch {}
     return [];
   }
+};
+
+export const getQuizzesMetadataPage = async (
+  page: number, 
+  pageSize: number = 20, 
+  grade?: Grade,
+  academicYear?: string,
+  forceRefresh: boolean = false
+): Promise<{ data: Quiz[]; total: number }> => {
+  const allQuizzes = await getQuizzesMetadata(grade, academicYear, forceRefresh);
+  const total = allQuizzes.length;
+  const from = (page - 1) * pageSize;
+  const paged = allQuizzes.slice(from, from + pageSize);
+  return { data: paged, total };
 };
 
 export const getQuizzes = async (grade?: Grade): Promise<Quiz[]> => {
@@ -846,9 +893,14 @@ export const getQuizzes = async (grade?: Grade): Promise<Quiz[]> => {
       q = query(qRef, where('grade', 'in', [grade, 'all']));
     }
     const snapshot = await getDocs(q);
+    trackFirestoreRead('quizzes', snapshot.docs.length);
     return snapshot.docs.map(d => {
       const row = d.data();
-      return (row.data as Quiz) || (row as Quiz);
+      const quiz = (row.data as Quiz) || (row as Quiz);
+      return {
+        ...quiz,
+        academicYear: row.academicYear || quiz.academicYear || getQuizAcademicYear(quiz)
+      };
     });
   } catch (e) {
     return [];
@@ -859,9 +911,14 @@ export const getQuizById = async (id: string): Promise<Quiz | null> => {
   if (!db) return null;
   try {
     const docSnap = await getDoc(doc(db, 'quizzes', id));
+    trackFirestoreRead('quizzes', 1);
     if (!docSnap.exists()) return null;
     const data = docSnap.data();
-    return (data.data as Quiz) || (data as Quiz);
+    const quiz = (data.data as Quiz) || (data as Quiz);
+    return {
+      ...quiz,
+      academicYear: data.academicYear || quiz.academicYear || getQuizAcademicYear(quiz)
+    };
   } catch (e) {
     console.error("Lỗi getQuizById:", e);
     return null;
@@ -870,8 +927,10 @@ export const getQuizById = async (id: string): Promise<Quiz | null> => {
 
 export const saveQuiz = async (quiz: Quiz): Promise<void> => {
   if (!db) throw new Error("Mất kết nối Database Cloud Firestore");
+  const effectiveYear = quiz.academicYear || getQuizAcademicYear(quiz);
   const enrichedQuiz = { 
     ...quiz, 
+    academicYear: effectiveYear,
     questionCount: quiz.questions ? quiz.questions.length : 0 
   };
   const payload = {
@@ -881,9 +940,11 @@ export const saveQuiz = async (quiz: Quiz): Promise<void> => {
     type: quiz.type,
     category: quiz.category || '',
     subject: quiz.subject || '',
+    academicYear: effectiveYear,
     isPublished: quiz.isPublished,
     isMonitored: quiz.isMonitored || false,
     isUnlisted: quiz.isUnlisted || false,
+    disablePractice: quiz.disablePractice || false,
     createdBy: quiz.createdBy || '',
     createdByName: quiz.createdByName || '',
     isSharedWithTeachers: quiz.isSharedWithTeachers ?? false,
@@ -895,11 +956,18 @@ export const saveQuiz = async (quiz: Quiz): Promise<void> => {
     data: cleanUndefined(enrichedQuiz)
   };
   await setDoc(doc(db, 'quizzes', quiz.id), cleanUndefined(payload));
+  invalidateMemoryCache('quizzes');
+  trackFirestoreWrite('quizzes', 1);
 };
 
 export const updateQuiz = async (enrichedQuiz: Quiz): Promise<void> => {
   if (!db) throw new Error("Mất kết nối Database Cloud Firestore");
-  const quiz = { ...enrichedQuiz, questionCount: enrichedQuiz.questions ? enrichedQuiz.questions.length : 0 };
+  const effectiveYear = enrichedQuiz.academicYear || getQuizAcademicYear(enrichedQuiz);
+  const quiz = { 
+    ...enrichedQuiz, 
+    academicYear: effectiveYear,
+    questionCount: enrichedQuiz.questions ? enrichedQuiz.questions.length : 0 
+  };
   const payload = {
     id: quiz.id,
     title: quiz.title,
@@ -907,9 +975,11 @@ export const updateQuiz = async (enrichedQuiz: Quiz): Promise<void> => {
     type: quiz.type,
     category: quiz.category || '',
     subject: quiz.subject || '',
+    academicYear: effectiveYear,
     isPublished: quiz.isPublished,
     isMonitored: quiz.isMonitored || false,
     isUnlisted: quiz.isUnlisted || false,
+    disablePractice: quiz.disablePractice || false,
     createdBy: quiz.createdBy || '',
     createdByName: quiz.createdByName || '',
     isSharedWithTeachers: quiz.isSharedWithTeachers ?? false,
@@ -920,6 +990,28 @@ export const updateQuiz = async (enrichedQuiz: Quiz): Promise<void> => {
     data: cleanUndefined(quiz)
   };
   await setDoc(doc(db, 'quizzes', quiz.id), cleanUndefined(payload), { merge: true });
+  invalidateMemoryCache('quizzes');
+  trackFirestoreWrite('quizzes', 1);
+};
+
+export const updateQuizAcademicYear = async (quizId: string, academicYear: string): Promise<void> => {
+  if (!db) throw new Error("Mất kết nối Database Cloud Firestore");
+  const quizRef = doc(db, 'quizzes', quizId);
+  await updateDoc(quizRef, {
+    academicYear: academicYear,
+    'data.academicYear': academicYear
+  });
+  
+  // Cập nhật ngay trong MemoryCache và localStorage để không tốn read
+  if (memoryCache.quizzesMeta?.data) {
+    memoryCache.quizzesMeta.data = memoryCache.quizzesMeta.data.map(q => 
+      q.id === quizId ? { ...q, academicYear } : q
+    );
+    try {
+      localStorage.setItem('eduquiz_quizzes_meta_cache', JSON.stringify(memoryCache.quizzesMeta.data));
+    } catch {}
+  }
+  trackFirestoreWrite('quizzes', 1);
 };
 
 export const assignQuizToClasses = async (
@@ -930,6 +1022,7 @@ export const assignQuizToClasses = async (
   if (!db) throw new Error("Mất kết nối Database Cloud Firestore");
   const quizRef = doc(db, 'quizzes', quizId);
   const docSnap = await getDoc(quizRef);
+  trackFirestoreRead('quizzes', 1);
   if (!docSnap.exists()) throw new Error("Không tìm thấy đề thi trên Cloud");
   
   const raw = docSnap.data();
@@ -957,11 +1050,15 @@ export const assignQuizToClasses = async (
     assignedClassIds: finalClassIds,
     data: cleanUndefined(updatedQuiz)
   }, { merge: true });
+  invalidateMemoryCache('quizzes');
+  trackFirestoreWrite('quizzes', 1);
 };
 
 export const deleteQuiz = async (id: string): Promise<void> => {
   if (db) {
     await deleteDoc(doc(db, 'quizzes', id));
+    invalidateMemoryCache('quizzes');
+    trackFirestoreDelete('quizzes', 1);
   }
 };
 
@@ -969,6 +1066,7 @@ export const syncAllQuizzesMetadata = async (): Promise<number> => {
   if (!db) return 0;
   try {
     const snapshot = await getDocs(collection(db, 'quizzes'));
+    trackFirestoreRead('quizzes', snapshot.docs.length);
     let count = 0;
     const batch = writeBatch(db);
     for (const docItem of snapshot.docs) {
@@ -983,6 +1081,7 @@ export const syncAllQuizzesMetadata = async (): Promise<number> => {
       count++;
     }
     await batch.commit();
+    trackFirestoreWrite('quizzes', count);
     return count;
   } catch (e) {
     console.error("Lỗi đồng bộ Metadata Firestore:", e);
@@ -1000,6 +1099,7 @@ export const getChapters = async (forceRefresh: boolean = false): Promise<Chapte
 
   try {
     const snapshot = await getDocs(collection(db, 'chapters'));
+    trackFirestoreRead('chapters', snapshot.docs.length);
     const chapters = snapshot.docs.map(d => {
       const row = d.data();
       const rawData = (row.data as Partial<Chapter>) || {};
@@ -1037,6 +1137,7 @@ export const saveChapter = async (c: Chapter): Promise<void> => {
       createdByName: c.createdByName || '',
       data: cleanUndefined(c)
     }));
+    trackFirestoreWrite('chapters', 1);
   }
 };
 
@@ -1044,6 +1145,7 @@ export const deleteChapter = async (id: string): Promise<void> => {
   if (db) {
     invalidateMemoryCache('chapters');
     await deleteDoc(doc(db, 'chapters', id));
+    trackFirestoreDelete('chapters', 1);
   }
 };
 
@@ -1055,6 +1157,7 @@ export const deleteChaptersBatch = async (ids: string[]): Promise<void> => {
     batch.delete(doc(db, 'chapters', id));
   }
   await batch.commit();
+  trackFirestoreDelete('chapters', ids.length);
 };
 
 // --- Classroom & Academic Year Management ---
@@ -1067,6 +1170,7 @@ export const getClasses = async (forceRefresh: boolean = false): Promise<ClassRo
 
     try {
       const snapshot = await getDocs(collection(db, 'classes'));
+      trackFirestoreRead('classes', snapshot.docs.length);
       if (!snapshot.empty) {
         const classes = snapshot.docs.map(d => {
           const row = d.data();
@@ -1132,6 +1236,7 @@ export const saveClass = async (c: ClassRoom): Promise<void> => {
       isSharedWithTeachers: Boolean(c.isSharedWithTeachers),
       data: cleanUndefined(c)
     }));
+    trackFirestoreWrite('classes', 1);
   }
 };
 
@@ -1157,6 +1262,7 @@ export const saveClassesBatch = async (classesList: ClassRoom[]): Promise<void> 
       }));
     }
     await batch.commit();
+    trackFirestoreWrite('classes', classesList.length);
   }
 };
 
@@ -1169,6 +1275,7 @@ export const deleteClass = async (id: string): Promise<void> => {
 
   if (db) {
     await deleteDoc(doc(db, 'classes', id));
+    trackFirestoreDelete('classes', 1);
   }
 };
 
@@ -1238,6 +1345,7 @@ export const getBankQuestions = async (): Promise<Question[]> => {
   if (!db) return [];
   try {
     const snapshot = await getDocs(collection(db, 'bank_questions'));
+    trackFirestoreRead('bank_questions', snapshot.docs.length);
     return snapshot.docs.map(d => {
       const row = d.data();
       return (row.data as Question) || (row as Question);
@@ -1264,6 +1372,7 @@ export const syncQuizzesToBank = async (targetSubject?: string): Promise<SyncBan
     const isFiltered = targetSubject && targetSubject !== 'all';
     // 1. Tải toàn bộ câu hỏi hiện có trong Ngân hàng
     const existingBankSnap = await getDocs(collection(db, 'bank_questions'));
+    trackFirestoreRead('bank_questions', existingBankSnap.docs.length);
     const existingBankMapById = new Map<string, Question>();
     const existingBankMapByFingerprint = new Map<string, string>(); // fingerprint -> docId
 
@@ -1280,6 +1389,7 @@ export const syncQuizzesToBank = async (targetSubject?: string): Promise<SyncBan
 
     // 2. Quét toàn bộ đề thi (lọc theo môn nếu có targetSubject)
     const quizSnap = await getDocs(collection(db, 'quizzes'));
+    trackFirestoreRead('quizzes', quizSnap.docs.length);
     let totalScanned = 0;
     let addedCount = 0;
     let updatedCount = 0;
@@ -1364,6 +1474,7 @@ export const syncQuizzesToBank = async (targetSubject?: string): Promise<SyncBan
         }), { merge: true });
       }
       await batch.commit();
+      trackFirestoreWrite('bank_questions', chunk.length);
     }
 
     return {
@@ -1392,6 +1503,7 @@ export const deduplicateBankQuestions = async (targetSubject?: string): Promise<
   try {
     const isFiltered = targetSubject && targetSubject !== 'all';
     const snapshot = await getDocs(collection(db, 'bank_questions'));
+    trackFirestoreRead('bank_questions', snapshot.docs.length);
     let allBankQuestions = snapshot.docs.map(d => {
       const row = d.data();
       const q = (row.data as Question) || (row as Question);
@@ -1472,6 +1584,7 @@ export const deduplicateBankQuestions = async (targetSubject?: string): Promise<
           batch.delete(doc(db, 'bank_questions', id));
         }
         await batch.commit();
+        trackFirestoreDelete('bank_questions', chunk.length);
       }
     }
 
@@ -1495,6 +1608,7 @@ export const saveBankQuestion = async (q: Question): Promise<void> => {
       createdBy: q.createdBy || '',
       data: cleanUndefined(q)
     }));
+    trackFirestoreWrite('bank_questions', 1);
   }
 };
 
@@ -1502,6 +1616,7 @@ export const deleteBankQuestion = async (id: string): Promise<void> => {
   if (!id) return;
   if (db) {
     await deleteDoc(doc(db, 'bank_questions', id));
+    trackFirestoreDelete('bank_questions', 1);
   }
 };
 
@@ -1519,6 +1634,7 @@ export const deleteBatchBankQuestions = async (ids: string[]): Promise<number> =
     }
     await batch.commit();
     deletedCount += chunk.length;
+    trackFirestoreDelete('bank_questions', chunk.length);
   }
   return deletedCount;
 };
@@ -1629,6 +1745,7 @@ export const getPublishedResults = async (limitCount: number = 20): Promise<Publ
   try {
     const q = query(collection(db, 'published_results'), limit(limitCount));
     const snapshot = await getDocs(q);
+    trackFirestoreRead('published_results', snapshot.docs.length);
     const list = snapshot.docs.map(d => {
       const row = d.data();
       return (row.data as PublishedResult) || (row as PublishedResult);
@@ -1649,12 +1766,14 @@ export const savePublishedResult = async (pub: PublishedResult): Promise<void> =
       publishedAt: pub.publishedAt,
       data: cleanUndefined(pub)
     }));
+    trackFirestoreWrite('published_results', 1);
   }
 };
 
 export const deletePublishedResult = async (id: string): Promise<void> => {
   if (db) {
     await deleteDoc(doc(db, 'published_results', id));
+    trackFirestoreDelete('published_results', 1);
   }
 };
 
@@ -1667,12 +1786,14 @@ export const saveExamSession = async (session: ExamSession): Promise<void> => {
       studentId: session.studentId,
       data: cleanUndefined(session)
     }));
+    trackFirestoreWrite('exam_sessions', 1);
   }
 };
 
 export const deleteExamSession = async (id: string): Promise<void> => {
   if (db) {
     await deleteDoc(doc(db, 'exam_sessions', id));
+    trackFirestoreDelete('exam_sessions', 1);
   }
 };
 
@@ -1684,6 +1805,7 @@ export const getExamSessions = async (quizId?: string): Promise<ExamSession[]> =
       q = query(collection(db, 'exam_sessions'), where('quizId', '==', quizId));
     }
     const snapshot = await getDocs(q);
+    trackFirestoreRead('exam_sessions', snapshot.docs.length);
     return snapshot.docs.map(d => {
       const row = d.data();
       return (row.data as ExamSession) || (row as ExamSession);
@@ -1698,6 +1820,7 @@ export const getStudentActiveSessions = async (studentId: string): Promise<ExamS
   try {
     const q = query(collection(db, 'exam_sessions'), where('studentId', '==', studentId));
     const snapshot = await getDocs(q);
+    trackFirestoreRead('exam_sessions', snapshot.docs.length);
     return snapshot.docs.map(d => {
       const row = d.data();
       return (row.data as ExamSession) || (row as ExamSession);
@@ -1711,9 +1834,11 @@ export const clearAllSessions = async (): Promise<void> => {
   if (!db) return;
   try {
     const snapshot = await getDocs(collection(db, 'exam_sessions'));
+    trackFirestoreRead('exam_sessions', snapshot.docs.length);
     const batch = writeBatch(db);
     snapshot.docs.forEach(d => batch.delete(d.ref));
     await batch.commit();
+    trackFirestoreDelete('exam_sessions', snapshot.docs.length);
   } catch (e) {
     console.error("Lỗi clearAllSessions:", e);
   }
